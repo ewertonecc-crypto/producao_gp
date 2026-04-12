@@ -2561,9 +2561,9 @@ export type Database = {
           p_atividade_id: string
           p_data_fim: string
           p_data_inicio: string
-          p_percentual_concluido?: number | null
+          p_percentual_concluido?: number
         }
-        Returns: null
+        Returns: Json
       }
       fn_mover_card_kanban: {
         Args: {
@@ -2571,21 +2571,21 @@ export type Database = {
           p_nova_ordem: number
           p_novo_status_id: string
         }
-        Returns: null
+        Returns: Json
       }
       fn_mover_evento_agenda: {
         Args: {
           p_atividade_id: string
-          p_data_fim?: string | null
+          p_data_fim?: string
           p_data_inicio: string
-          p_hora_fim?: string | null
-          p_hora_inicio?: string | null
+          p_hora_fim?: string
+          p_hora_inicio?: string
         }
-        Returns: null
+        Returns: Json
       }
       fn_reordenar_coluna_kanban: {
         Args: { p_ids_em_ordem: string[] }
-        Returns: null
+        Returns: undefined
       }
       fn_tenant_id: { Args: never; Returns: string }
     }
