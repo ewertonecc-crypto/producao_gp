@@ -1,0 +1,145 @@
+# ProjectOS — Gestão de Projetos
+# Contexto completo para o Cursor AI
+
+## STACK
+- Frontend: React 18 + TypeScript + Vite
+- UI: shadcn/ui + Tailwind CSS
+- Backend: Supabase (PostgreSQL + Auth + RLS)
+- Projeto Supabase: nupfffjoewkfmjyqkrvq (sa-east-1)
+- URL: https://nupfffjoewkfmjyqkrvq.supabase.co
+
+## ESTRUTURA DE PASTAS
+```
+src/
+  components/
+    ui/           → shadcn/ui components (não editar)
+    layout/       → Sidebar, Topbar, AppLayout
+    modals/       → Modais de cadastro
+  hooks/
+    useAuth.ts        → Autenticação Supabase
+    useTenant.ts      → tenant_id + papel do usuário
+    useTenantConfig.ts → Configurações do tenant
+  integrations/
+    supabase/
+      client.ts   → createClient do Supabase
+      types.ts    → Tipos TypeScript do banco
+  pages/          → Uma página por rota
+  lib/            → utils, helpers
+  types/          → Tipos TypeScript do domínio
+```
+
+## BANCO DE DADOS — 26 TABELAS
+
+### Tabelas de Apoio (Grupo 1)
+- `tenants` — empresas clientes (multi-tenant)
+- `status` — status por módulo (portfolio/programa/projeto/atividade/recurso)
+- `tipos_cadastro` — tipos de portfólio, programa, projeto
+- `prioridades` — Urgente, Alta, Média, Baixa
+- `categorias_atividade` — Desenvolvimento, Design, Teste, etc.
+- `tipos_recurso` — Humano, Equipamento, Sala, Software
+- `papeis` — Admin, Gerente Portfolio, Gerente Programa, Gerente Projeto, Resp. Técnico, Membro, Visualizador
+
+### Usuários (Grupo 2)
+- `usuarios` — vinculado ao auth.users do Supabase
+- `clientes_externos` — aprovadores de entrega (acesso via token)
+- `usuario_projeto_papel` — papel por projeto/programa/portfólio
+
+### Recursos (Grupo 3)
+- `recursos` — humanos e não-humanos com capacidade e custo/hora
+- `alocacoes_recurso` — rateio de recursos entre projetos
+
+### Hierarquia Principal (Grupo 4)
+- `portfolios` — nível 1 (código: PORT-0001 automático)
+- `programas` — nível 2, vinculado a portfolio (código: PROG-0001)
+- `projetos` — nível 3, vinculado a programa (código: PROJ-0001)
+- `atividades` — nível 4, vinculado a projeto (código: ATIV-0001)
+
+### Transacionais (Grupo 5)
+- `marcos` — milestones em portfolio/programa/projeto
+- `stakeholders` — partes interessadas
+- `riscos` — gestão de riscos por projeto
+- `mudancas_escopo` — change log do projeto
+- `licoes_aprendidas` — registro por qualquer nível
+- `comentarios` — polimórfico (qualquer entidade)
+- `eventos_agenda` — eventos avulsos (reuniões, lembretes)
+
+### Sistema (Grupo 6)
+- `audit_log` — log automático de todas as alterações
+- `notificacoes` — notificações para usuários e clientes
+- `configuracoes_tenant` — configurações por empresa
+
+## VIEWS (não são tabelas)
+- `v_agenda` — atividades + marcos + eventos_agenda
+- `v_gantt` — atividades com datas, progresso e dependências
+- `v_kanban` — atividades agrupadas por status (coluna)
+- `v_mapa_estrategico` — hierarquia portfolio→programa→projeto com saúde
+- `v_carga_recurso` — detecção de sobrealocação de recursos
+
+## TRIGGERS AUTOMÁTICOS
+- `fn_gerar_codigo()` — gera PORT-0001, PROG-0001, PROJ-0001, ATIV-0001
+- `fn_auditoria()` — registra toda alteração no audit_log
+- `fn_atualizar_progresso_projeto()` — recalcula % do projeto ao atualizar atividades
+- `fn_set_atualizado_em()` — atualiza atualizado_em automaticamente
+
+## RLS (Row Level Security)
+- Todas as 26 tabelas têm RLS ativo
+- Isolamento via `fn_tenant_id()` — cada empresa só vê seus dados
+- Função: `SELECT tenant_id FROM usuarios WHERE id = auth.uid()`
+
+## REGRAS DE DESENVOLVIMENTO
+
+### Sempre usar
+- `import { supabase } from '@/integrations/supabase/client'`
+- `import { useAuth } from '@/hooks/useAuth'`
+- `import { useTenant } from '@/hooks/useTenant'`
+- Componentes shadcn/ui para UI
+- Tailwind CSS para estilos
+
+### Queries Supabase — padrões
+```typescript
+// Listar com relacionamentos
+const { data } = await supabase
+  .from('projetos')
+  .select('*, status(*), prioridades(*), usuarios!gerente_projeto_id(*)')
+  .order('criado_em', { ascending: false })
+
+// Sempre filtrar por tenant (RLS já filtra, mas ser explícito é boa prática)
+.eq('tenant_id', tenantId)
+
+// Usar views para visualizações
+const { data } = await supabase.from('v_kanban').select('*').eq('projeto_id', id)
+const { data } = await supabase.from('v_mapa_estrategico').select('*')
+const { data } = await supabase.from('v_gantt').select('*').eq('projeto_id', id)
+```
+
+### Nomenclatura (espelhar o banco)
+- Tabelas: snake_case plural (portfolios, projetos, atividades)
+- Campos: snake_case (tenant_id, criado_em, status_id)
+- Componentes React: PascalCase (PortfolioCard, ProjetoModal)
+- Hooks: camelCase com use prefix (usePortfolios, useProjetos)
+- Páginas: PascalCase (Portfolios.tsx, Projetos.tsx)
+
+### Status dos módulos (seeds carregados)
+- Portfólio/Programa: Rascunho → Ativo → Suspenso → Encerrado → Cancelado
+- Projeto: Rascunho → Aprovado → Em Planejamento → Em Execução → Em Revisão → Concluído → Cancelado → Suspenso
+- Atividade (= colunas Kanban): A Fazer → Em Andamento → Aguard. Revisão Interna → Enviada ao Cliente → Aceita → Rejeitada → Cancelada
+- Recurso: Disponível → Alocado → Sobrealocado → Inativo
+
+### Aceite de entregas (fluxo do cliente externo)
+1. Membro conclui atividade + anexa evidências
+2. Gerente aprova internamente → status "Aguard. Revisão Interna"
+3. Sistema envia email ao cliente externo com token
+4. Cliente acessa portal via token (sem login) → aprova ou rejeita
+5. Aprovado → status_aceite = 'aceita'
+6. Rejeitado → motivo_rejeicao obrigatório → volta para "Em Andamento" (iteracao + 1)
+
+## TENANT DEMO (para desenvolvimento)
+- tenant_id: 00000000-0000-0000-0000-000000000001
+- nome: Empresa Demo
+- Já tem: prioridades, papéis, status, tipos de recurso, categorias e configurações
+
+## VARIÁVEIS DE AMBIENTE
+```
+VITE_SUPABASE_URL=https://nupfffjoewkfmjyqkrvq.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
