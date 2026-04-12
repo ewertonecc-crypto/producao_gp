@@ -9,9 +9,7 @@ services:
     volumes:
       - .:/app
       - node_modules:/app/node_modules
-    environment:
-      NODE_ENV: production
-    command: sh -c "npm ci && npm run build && npm run preview"
+    command: sh -c "NODE_ENV=development npm ci && NODE_ENV=production npm run build && NODE_ENV=production npm run preview"
     stdin_open: true
     tty: true
 
