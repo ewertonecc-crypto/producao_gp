@@ -2,7 +2,7 @@
 # No painel, defina a porta interna do container como 5173 (é onde o Vite escuta).
 # Se o domínio apontar para `http://noxa_producao_gp:5173`, o alias abaixo faz esse hostname resolver para este container (senão o proxy pode dar 502).
 services:
-  WEB:
+  web:
     image: node:22-bookworm
     working_dir: /app
     expose:
