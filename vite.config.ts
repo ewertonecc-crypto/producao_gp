@@ -4,10 +4,14 @@ import path from "path";
 
 export default defineConfig({
   plugins: [react()],
+  server: {
+    allowedHosts: ["projeto.noxa.com.br"],
+  },
   preview: {
     host: true,
     port: 5173,
     strictPort: true,
+    allowedHosts: ["projeto.noxa.com.br"],
   },
   resolve: {
     alias: {
