@@ -1,6 +1,9 @@
 # Gestão Projetos — sem `ports` aqui: o EasyPanel avisa conflito se o compose publicar porta no host.
-# No painel, defina a porta interna do container como 5173 (é onde o Vite escuta).
+# No painel, defina a porta interna do container como 5173 (é onde o Vite escuta em dev).
 # Se o domínio apontar para `http://noxa_producao_gp:5173`, o alias abaixo faz esse hostname resolver para este container (senão o proxy pode dar 502).
+# `name` fixa o stack (rede/volumes/containers) a este repositório — executar sempre na raiz de GProjeto.
+name: gestao-projetos
+
 services:
   web:
     image: node:22-bookworm
@@ -10,7 +13,9 @@ services:
     volumes:
       - .:/app
       - node_modules:/app/node_modules
-    command: sh -c "NODE_ENV=development npm ci && NODE_ENV=production npm run build && NODE_ENV=production npm run preview"
+    environment:
+      NODE_ENV: development
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 5173"
     stdin_open: true
     tty: true
     networks:

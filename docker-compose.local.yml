@@ -1,0 +1,7 @@
+# Apenas para Docker na sua máquina. Não use este ficheiro no EasyPanel.
+# Ex.: docker compose -f docker-compose.yml -f docker-compose.local.yml up
+# Porta no host 35173 por defeito (evita colisão com o outro projeto em 30401); ajuste com HOST_PORT.
+services:
+  web:
+    ports:
+      - "${HOST_PORT:-35173}:5173"
