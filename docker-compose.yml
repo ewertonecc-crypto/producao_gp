@@ -18,8 +18,5 @@ services:
         aliases:
           - noxa_producao_gp
 
-networks:
-  default:
-
 volumes:
   node_modules:
