@@ -1,7 +1,7 @@
 # Gestão Projetos — sem `ports` aqui: o EasyPanel avisa conflito se o compose publicar porta no host.
 # No painel, defina a porta interna do container como 4001 (é onde o Vite escuta).
 services:
-  web:
+  WEB:
     image: node:22-bookworm
     working_dir: /app
     expose:
