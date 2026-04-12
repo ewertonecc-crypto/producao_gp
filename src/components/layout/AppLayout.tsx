@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAtividadesSync } from "@/hooks/useAtividadesSync";
 
 export default function AppLayout() {
-  const { nome, data: tenant } = useTenant();
+  const { nome, data: tenant, tenantId } = useTenant();
   useAtividadesSync(tenant?.id);
   const { user, signOut } = useAuth();
 
@@ -14,6 +14,8 @@ export default function AppLayout() {
     <div className="flex flex-col h-screen overflow-hidden bg-[#050508]">
       <Topbar
         tenantNome={nome ?? undefined}
+        tenantId={tenantId ?? undefined}
+        userId={user?.id}
         userLabel={nome ?? user?.email ?? undefined}
         onSignOut={() => void signOut()}
       />
