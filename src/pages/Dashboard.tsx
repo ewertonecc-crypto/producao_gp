@@ -1,11 +1,9 @@
-import { useCallback, useRef, useState } from "react";
-import { format } from "date-fns";
-import html2canvas from "html2canvas";
-import { jsPDF } from "jspdf";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { useTenant } from "@/hooks/useTenant";
 import { useProjetos } from "@/hooks/useProjetos";
 import { useMarcos } from "@/hooks/useMarcos";
+import { saveDashboardPdf } from "@/lib/dashboardPdfReport";
 import { fmtDate, dateColor, avatarInitials, progressColor, statusToBadgeClass, prioToClass, cn } from "@/lib/utils";
 
 export default function Dashboard() {
@@ -13,7 +11,6 @@ export default function Dashboard() {
   const { data: projetos = [], isLoading: loadingProj } = useProjetos(tenantId ?? undefined);
   const { data: marcos = [] } = useMarcos(tenantId ?? undefined);
   const [exportandoPdf, setExportandoPdf] = useState(false);
-  const dashboardPdfRef = useRef<HTMLDivElement>(null);
 
   const hoje = new Date();
   const emExec = projetos.filter(p => (p.status as any)?.nome?.toLowerCase().includes("execu")).length;
@@ -23,54 +20,16 @@ export default function Dashboard() {
   ).length;
 
   const exportarPdf = useCallback(async () => {
-    const el = dashboardPdfRef.current;
-    if (!el) {
-      toast.error("Não foi possível localizar o painel para exportar.");
-      return;
-    }
     setExportandoPdf(true);
     try {
-      const canvas = await html2canvas(el, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: "#0A0A12",
-        width: el.scrollWidth,
-        height: el.scrollHeight,
-        windowWidth: el.scrollWidth,
-        windowHeight: el.scrollHeight,
-      });
-
-      const imgData = canvas.toDataURL("image/png");
-      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pdfW = doc.internal.pageSize.getWidth();
-      const pdfH = doc.internal.pageSize.getHeight();
-      const marginMm = 10;
-      const contentW = pdfW - 2 * marginMm;
-      const pageContentH = pdfH - 2 * marginMm;
-      const imgH = (canvas.height * contentW) / canvas.width;
-
-      let heightLeft = imgH - pageContentH;
-      let positionY = marginMm;
-
-      doc.addImage(imgData, "PNG", marginMm, positionY, contentW, imgH);
-
-      while (heightLeft > 0) {
-        positionY = marginMm + (heightLeft - imgH);
-        doc.addPage();
-        doc.addImage(imgData, "PNG", marginMm, positionY, contentW, imgH);
-        heightLeft -= pageContentH;
-      }
-
-      const slug = format(new Date(), "yyyy-MM-dd");
-      doc.save(`dashboard-${slug}.pdf`);
+      saveDashboardPdf(projetos, marcos);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Falha ao gerar PDF";
       toast.error(msg);
     } finally {
       setExportandoPdf(false);
     }
-  }, []);
+  }, [projetos, marcos]);
 
   const avClasses = ["from-indigo-500 to-violet-400", "from-cyan-400 to-indigo-500", "from-emerald-500 to-cyan-400", "from-amber-400 to-rose-400"];
 
@@ -94,10 +53,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div
-        ref={dashboardPdfRef}
-        className="p-7 flex flex-col gap-6 bg-[#0A0A12] [print-color-adjust:exact]"
-      >
+      <div className="p-7 flex flex-col gap-6 bg-[#0A0A12] [print-color-adjust:exact]">
         {/* Stats */}
         <div className="grid grid-cols-4 gap-3">
           {[
