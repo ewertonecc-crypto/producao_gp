@@ -79,9 +79,20 @@ interface Props {
   statusIdPadrao?: string;
   /** Modo edição: carrega a atividade pelo id. */
   editId?: string | null;
+  /** Pré-preenche datas (yyyy-MM-dd), ex.: clique no dia na Agenda. */
+  dataInicioPadrao?: string;
+  dataFimPadrao?: string;
 }
 
-export function ModalNovaAtividade({ open, onClose, projetoIdPadrao, statusIdPadrao, editId }: Props) {
+export function ModalNovaAtividade({
+  open,
+  onClose,
+  projetoIdPadrao,
+  statusIdPadrao,
+  editId,
+  dataInicioPadrao,
+  dataFimPadrao,
+}: Props) {
   const { tenantId } = useTenant();
   const createMut = useCreateAtividade();
   const updateMut = useUpdateAtividade();
@@ -138,9 +149,11 @@ export function ModalNovaAtividade({ open, onClose, projetoIdPadrao, statusIdPad
         ...EMPTY_VALUES,
         projeto_id: projetoIdPadrao ?? "",
         status_id: statusIdPadrao ?? "",
+        data_inicio_prevista: dataInicioPadrao ?? "",
+        data_fim_prevista: dataFimPadrao ?? "",
       });
     }
-  }, [open, editId, editRow, projetoIdPadrao, statusIdPadrao, reset]);
+  }, [open, editId, editRow, projetoIdPadrao, statusIdPadrao, dataInicioPadrao, dataFimPadrao, reset]);
 
   const onSubmit = async (values: FormValues) => {
     if (!tenantId) {

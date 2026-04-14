@@ -19,6 +19,8 @@ export default function Kanban() {
 
   const [modalNovaOpen, setModalNovaOpen] = useState(false);
   const [modalStatusId, setModalStatusId] = useState<string | undefined>();
+  const [modalEditId, setModalEditId] = useState<string | null>(null);
+  const ignorarCliqueAposDrag = useRef(false);
 
   // Estado do drag
   const dragCard = useRef<{ id: string; fromStatusId: string; fromOrdem: number } | null>(null);
@@ -99,13 +101,25 @@ export default function Kanban() {
   );
 
   const onDragEnd = useCallback(() => {
+    ignorarCliqueAposDrag.current = true;
+    window.setTimeout(() => {
+      ignorarCliqueAposDrag.current = false;
+    }, 0);
     setDragOverCol(null);
     setDragOverCardId(null);
     dragCard.current = null;
   }, []);
 
   const abrirNovaAtividade = useCallback((statusId?: string) => {
+    setModalEditId(null);
     setModalStatusId(statusId);
+    setModalNovaOpen(true);
+  }, []);
+
+  const abrirEditarAtividade = useCallback((id: string) => {
+    if (ignorarCliqueAposDrag.current) return;
+    setModalEditId(id);
+    setModalStatusId(undefined);
     setModalNovaOpen(true);
   }, []);
 
@@ -116,9 +130,11 @@ export default function Kanban() {
         onClose={() => {
           setModalNovaOpen(false);
           setModalStatusId(undefined);
+          setModalEditId(null);
         }}
         projetoIdPadrao={projetoAtivo || undefined}
         statusIdPadrao={modalStatusId}
+        editId={modalEditId}
       />
       {/* Header */}
       <div className="px-7 pt-6 pb-5 border-b border-white/[0.04] flex items-center justify-between flex-shrink-0">
@@ -205,11 +221,20 @@ export default function Kanban() {
                 {col.cards.map((card) => (
                   <div
                     key={card.id ?? card.codigo}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if ((e.key === "Enter" || e.key === " ") && card.id) {
+                        e.preventDefault();
+                        abrirEditarAtividade(card.id);
+                      }
+                    }}
                     draggable={!!card.id}
                     onDragStart={(e) => onDragStart(e, card)}
                     onDragOver={(e) => onDragOver(e, col.statusId, card.id ?? undefined)}
                     onDrop={(e) => onDrop(e, col.statusId, card.id ?? undefined)}
                     onDragEnd={onDragEnd}
+                    onClick={() => card.id && abrirEditarAtividade(card.id)}
                     className={cn(
                       "bg-[#141424] border rounded-2xl p-3.5 cursor-grab active:cursor-grabbing",
                       "transition-all duration-150 relative overflow-hidden select-none",

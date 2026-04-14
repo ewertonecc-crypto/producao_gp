@@ -77,6 +77,7 @@ export default function Agenda() {
   const [diaExpandido, setDiaExpandido] = useState<string | null>(null);
 
   const [editAtividadeId, setEditAtividadeId] = useState<string | null>(null);
+  const [novaAtividadeDia, setNovaAtividadeDia] = useState<string | null>(null);
   const [editMarcoId, setEditMarcoId] = useState<string | null>(null);
   const [eventoAgendaDetalhe, setEventoAgendaDetalhe] = useState<AgendaRow | null>(null);
   const [projetoPadraoAtividade, setProjetoPadraoAtividade] = useState<string | undefined>(undefined);
@@ -87,6 +88,7 @@ export default function Agenda() {
     if (!ev.id) return;
     const tipo = normalizarTipoEventoAgenda(ev.tipo_evento);
     if (tipo === "atividade") {
+      setNovaAtividadeDia(null);
       setProjetoPadraoAtividade(ev.projeto_id ?? undefined);
       setEditAtividadeId(ev.id);
       return;
@@ -141,13 +143,16 @@ export default function Agenda() {
   return (
     <div className="flex flex-col flex-1">
       <ModalNovaAtividade
-        open={!!editAtividadeId}
+        open={!!editAtividadeId || novaAtividadeDia !== null}
         onClose={() => {
           setEditAtividadeId(null);
+          setNovaAtividadeDia(null);
           setProjetoPadraoAtividade(undefined);
         }}
         projetoIdPadrao={projetoPadraoAtividade}
         editId={editAtividadeId}
+        dataInicioPadrao={novaAtividadeDia ?? undefined}
+        dataFimPadrao={novaAtividadeDia ?? undefined}
       />
       <ModalNovoMarco
         open={!!editMarcoId}
@@ -272,8 +277,23 @@ export default function Agenda() {
             return (
               <div
                 key={diaStr}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setNovaAtividadeDia(diaStr);
+                    setEditAtividadeId(null);
+                    setProjetoPadraoAtividade(undefined);
+                  }
+                }}
+                onClick={() => {
+                  setNovaAtividadeDia(diaStr);
+                  setEditAtividadeId(null);
+                  setProjetoPadraoAtividade(undefined);
+                }}
                 className={cn(
-                  "bg-[#141424] min-h-[88px] p-1.5 transition-colors",
+                  "bg-[#141424] min-h-[88px] p-1.5 transition-colors cursor-pointer hover:bg-white/[0.03]",
                   isHoje && "bg-indigo-500/[0.06]",
                   dragOverDia === diaStr && "bg-indigo-500/[0.1] ring-1 ring-indigo-500/40"
                 )}
@@ -338,7 +358,10 @@ export default function Agenda() {
                 {evs.length > 3 && (
                   <button
                     type="button"
-                    onClick={() => setDiaExpandido((d) => (d === diaStr ? null : diaStr))}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDiaExpandido((d) => (d === diaStr ? null : diaStr));
+                    }}
                     className="text-[9.5px] font-mono text-[var(--text-muted)] cursor-pointer hover:text-[var(--accent-bright)] text-left w-full"
                   >
                     {diaExpandido === diaStr ? "Mostrar menos" : `+${evs.length - 3} mais`}
