@@ -1,5 +1,8 @@
 import { useMemo, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
+import { Cronometro, formatarHorasDecimais } from "@/components/ui/cronometro";
 import { SubatividadesList } from "@/components/subatividades/SubatividadesList";
 import { useSubatividadesResumo } from "@/hooks/useSubatividades";
 import { useTenant } from "@/hooks/useTenant";
@@ -30,6 +33,7 @@ import {
 import { cn, fmtPrevisao, dateColor } from "@/lib/utils";
 import { percentualAtividadeComSubatividades } from "@/lib/progressoComSubatividades";
 import { ModalNovaAtividade } from "@/components/modals/ModalNovaAtividade";
+import { RegistrosTempoPopover } from "@/components/ui/registros-tempo-popover";
 
 type AtividadeRow = NonNullable<ReturnType<typeof useAtividades>["data"]>[number];
 
@@ -76,10 +80,13 @@ function bucketAtividade(a: { status_aceite: string | null; status: unknown }): 
   return "fazer";
 }
 
+type NivelExecucao = "atividade" | "subatividade";
+
 export default function Atividades() {
   const { tenantId } = useTenant();
   const { data: atividades = [], isLoading } = useAtividades(tenantId ?? undefined);
   const deleteMut = useDeleteAtividade();
+  const qc = useQueryClient();
   const [tab, setTab] = useState<TabKey>("todas");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<AtividadeFilters>(FILTERS_EMPTY);
@@ -87,11 +94,30 @@ export default function Atividades() {
   const [editAtividadeId, setEditAtividadeId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AtividadeRow | null>(null);
   const [expandida, setExpandida] = useState<string | null>(null);
+  /** Nível de execução por atividade: "atividade" (tempo direto) | "subatividade" (tempo nas subs) */
+  const [nivelExecucao, setNivelExecucao] = useState<Record<string, NivelExecucao>>({});
 
   const closeModal = () => {
     setModalOpen(false);
     setEditAtividadeId(null);
   };
+
+  const salvarTempoAtividade = async (atividadeId: string, horasJa: number | null | undefined, segundos: number) => {
+    const horasNovas = segundos / 3600;
+    const horasTotal = (horasJa ?? 0) + horasNovas;
+    await supabase.from("atividades").update({ horas_realizadas: horasTotal }).eq("id", atividadeId);
+    await (supabase as any).from("registros_tempo").insert({
+      tenant_id: tenantId,
+      atividade_id: atividadeId,
+      segundos,
+    });
+    qc.invalidateQueries({ queryKey: ["atividades"] });
+    qc.invalidateQueries({ queryKey: ["registros_tempo", atividadeId, null] });
+  };
+
+  const getNivel = (id: string): NivelExecucao => nivelExecucao[id] ?? "subatividade";
+  const setNivel = (id: string, nivel: NivelExecucao) =>
+    setNivelExecucao((prev) => ({ ...prev, [id]: nivel }));
 
   const aguardando = useMemo(
     () => atividades.filter((a) => a.status_aceite === "enviada" || ((a.status as { nome?: string } | null)?.nome ?? "").toLowerCase().includes("revis")).length,
@@ -432,9 +458,59 @@ export default function Atividades() {
                       >
                         {atrasado ? "⏱ ATRASO" : `⏱ ${fmtPrevisao(a.data_fim_prevista)}`}
                       </span>
+                      {/* Horas realizadas totais da atividade */}
+                      {(a as { horas_realizadas?: number | null }).horas_realizadas != null &&
+                        (a as { horas_realizadas?: number | null }).horas_realizadas! > 0 && (
+                        <span className="text-[10.5px] font-mono text-cyan-400" title="Horas executadas">
+                          🕐 {formatarHorasDecimais((a as { horas_realizadas?: number | null }).horas_realizadas!)}
+                        </span>
+                      )}
                       <div className="w-[80px]">
                         <ProgressBar value={pct} />
                       </div>
+
+                      {/* Seletor de nível + cronômetro */}
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex rounded-[8px] overflow-hidden border border-white/[0.08] text-[10px] font-mono">
+                          <button
+                            type="button"
+                            onClick={() => setNivel(a.id, "atividade")}
+                            className={cn(
+                              "px-2 py-1 transition-colors",
+                              getNivel(a.id) === "atividade"
+                                ? "bg-indigo-500/30 text-indigo-300"
+                                : "text-[var(--text-dim)] hover:text-[var(--text-muted)]"
+                            )}
+                            title="Registrar tempo diretamente na atividade"
+                          >
+                            Ativ.
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setNivel(a.id, "subatividade")}
+                            className={cn(
+                              "px-2 py-1 transition-colors border-l border-white/[0.08]",
+                              getNivel(a.id) === "subatividade"
+                                ? "bg-indigo-500/30 text-indigo-300"
+                                : "text-[var(--text-dim)] hover:text-[var(--text-muted)]"
+                            )}
+                            title="Registrar tempo nas subatividades"
+                          >
+                            Sub.
+                          </button>
+                        </div>
+                        {getNivel(a.id) === "atividade" && (
+                          <>
+                            <Cronometro
+                              id={`ativ-${a.id}`}
+                              horasAcumuladas={(a as { horas_realizadas?: number | null }).horas_realizadas}
+                              onSalvar={(s) => salvarTempoAtividade(a.id, (a as { horas_realizadas?: number | null }).horas_realizadas, s)}
+                            />
+                            <RegistrosTempoPopover atividadeId={a.id} />
+                          </>
+                        )}
+                      </div>
+
                       <Button
                         type="button"
                         variant="ghost"
@@ -474,6 +550,7 @@ export default function Atividades() {
                         atividadeId={a.id}
                         dataInicioPrevista={a.data_inicio_prevista}
                         dataFimPrevista={a.data_fim_prevista}
+                        mostrarCronometro={getNivel(a.id) === "subatividade"}
                       />
                     </div>
                   )}

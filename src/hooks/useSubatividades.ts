@@ -101,6 +101,7 @@ export interface Subatividade {
   atrasada?: boolean;
   total_validas?: number;
   total_concluidas?: number;
+  horas_realizadas?: number | null;
 }
 
 export type SubatividadesResumo = { concluidas: number; total: number };
@@ -284,6 +285,7 @@ export function useUpdateSubatividade() {
         "total_concluidas",
         "atrasada",
         "responsavel_nome",
+        "atividade_id",
       ]) {
         delete patch[k];
       }

@@ -1,4 +1,7 @@
 import { useMemo, useState } from "react";
+import { Cronometro } from "@/components/ui/cronometro";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 
 /** Converte previsão de fim da atividade (YYYY-MM-DD ou ISO) para limite do input date. */
 function previsaoFimParaMaxInput(dataFimPrevista: string | null | undefined): string | undefined {
@@ -33,6 +36,8 @@ import { useTenant } from "@/hooks/useTenant";
 import { useStatus } from "@/hooks/useStatus";
 import { cn, fmtPrevisao } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { RegistrosTempoPopover } from "@/components/ui/registros-tempo-popover";
+import { formatarHorasDecimais } from "@/components/ui/cronometro";
 
 function statusFieldStyle(cor: string | null | undefined): React.CSSProperties {
   const accent = cor && cor.trim() ? cor : "#6366f1";
@@ -50,6 +55,8 @@ interface Props {
   /** Previsões da atividade pai (exibidas no painel; hora se vier em ISO). */
   dataInicioPrevista?: string | null;
   dataFimPrevista?: string | null;
+  /** Exibir cronômetro nas subatividades (quando nível = subatividade) */
+  mostrarCronometro?: boolean;
 }
 
 export function SubatividadesList({
@@ -57,8 +64,10 @@ export function SubatividadesList({
   readonly = false,
   dataInicioPrevista,
   dataFimPrevista,
+  mostrarCronometro = false,
 }: Props) {
   const { data: tenant } = useTenant();
+  const qc = useQueryClient();
   const { data: subs = [], isLoading } = useSubatividades(atividadeId);
   const { data: usuarios = [] } = useUsuarios(tenant?.id);
   const { data: statusCfg = [], isLoading: loadingStatusCfg } = useStatus(tenant?.id, "subatividade", false);
@@ -181,6 +190,45 @@ export function SubatividadesList({
     sub.status_cor?.trim() ||
     statusOrdenados.find((s) => s.id === sub.status_id)?.cor ||
     null;
+
+  /** Salva tempo (em segundos) na subatividade e acumula na atividade pai */
+  const salvarTempoSub = async (subId: string, horasJa: number | null | undefined, segundos: number) => {
+    const horasNovas = segundos / 3600;
+    const horasTotal = (horasJa ?? 0) + horasNovas;
+
+    const { error: errSub } = await supabase
+      .from("subatividades" as any)
+      .update({ horas_realizadas: horasTotal } as any)
+      .eq("id", subId);
+    if (errSub) throw errSub;
+
+    const { data: atv } = await supabase
+      .from("atividades")
+      .select("horas_realizadas, tenant_id")
+      .eq("id", atividadeId)
+      .single();
+    const horasAtvAtual = (atv as { horas_realizadas?: number | null } | null)?.horas_realizadas ?? 0;
+    const tenantIdAtv = (atv as { tenant_id?: string } | null)?.tenant_id;
+
+    const { error: errAtv } = await supabase
+      .from("atividades")
+      .update({ horas_realizadas: horasAtvAtual + horasNovas })
+      .eq("id", atividadeId);
+    if (errAtv) throw errAtv;
+
+    if (tenantIdAtv) {
+      await (supabase as any).from("registros_tempo").insert({
+        tenant_id: tenantIdAtv,
+        atividade_id: atividadeId,
+        subatividade_id: subId,
+        segundos,
+      });
+    }
+
+    qc.invalidateQueries({ queryKey: ["subatividades", atividadeId] });
+    qc.invalidateQueries({ queryKey: ["atividades"] });
+    qc.invalidateQueries({ queryKey: ["registros_tempo", atividadeId, subId] });
+  };
 
   return (
     <div>
@@ -380,6 +428,12 @@ export function SubatividadesList({
                         ✓ {fmtPrevisao(sub.data_conclusao)}
                       </span>
                     )}
+
+                    {sub.horas_realizadas != null && sub.horas_realizadas > 0 && (
+                      <span className="text-[10.5px] font-mono text-cyan-400" title="Horas executadas nesta subatividade">
+                        🕐 {formatarHorasDecimais(sub.horas_realizadas)}
+                      </span>
+                    )}
                   </div>
 
                   {sub.observacao && (
@@ -393,6 +447,17 @@ export function SubatividadesList({
 
                 {!readonly && !isEdit && (
                   <div className="flex items-center gap-0.5 flex-shrink-0 mt-0.5">
+                    {mostrarCronometro && (
+                      <>
+                        <Cronometro
+                          id={`sub-${sub.id}`}
+                          horasAcumuladas={sub.horas_realizadas}
+                          disabled={sub.status === "cancelada"}
+                          onSalvar={(s) => salvarTempoSub(sub.id, sub.horas_realizadas, s)}
+                        />
+                        <RegistrosTempoPopover atividadeId={atividadeId} subatividadeId={sub.id} />
+                      </>
+                    )}
                     <Button
                       type="button"
                       variant="ghost"
