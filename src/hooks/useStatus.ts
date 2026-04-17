@@ -155,6 +155,8 @@ export function useCreateStatusItem() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["status"] });
+      qc.invalidateQueries({ queryKey: ["subatividades"] });
+      qc.invalidateQueries({ queryKey: ["subatividades-resumo"] });
       toast.success("Status adicionado.");
     },
     onError: (e: Error) => toast.error("Erro: " + e.message),
@@ -175,6 +177,8 @@ export function useUpdateStatusItem() {
       qc.invalidateQueries({ queryKey: ["status"] });
       qc.invalidateQueries({ queryKey: ["atividades"] });
       qc.invalidateQueries({ queryKey: ["v_kanban"] });
+      qc.invalidateQueries({ queryKey: ["subatividades"] });
+      qc.invalidateQueries({ queryKey: ["subatividades-resumo"] });
     },
     onError: (e: Error) => toast.error("Erro: " + e.message),
   });
@@ -253,6 +257,8 @@ export function useSoftDeleteStatus() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["status"] });
+      qc.invalidateQueries({ queryKey: ["subatividades"] });
+      qc.invalidateQueries({ queryKey: ["subatividades-resumo"] });
       toast.success("Status desativado.");
     },
     onError: (e: Error) => toast.error("Erro: " + e.message),

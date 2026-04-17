@@ -42,6 +42,7 @@ const MODULOS_STATUS = [
   { value: "programa", label: "Programa" },
   { value: "projeto", label: "Projeto" },
   { value: "atividade", label: "Atividade" },
+  { value: "subatividade", label: "Subatividade" },
   { value: "recurso", label: "Recurso" },
 ] as const;
 

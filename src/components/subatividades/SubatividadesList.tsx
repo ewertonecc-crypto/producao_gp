@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   useSubatividades,
   useCreateSubatividade,
@@ -7,17 +7,17 @@ import {
 } from "@/hooks/useSubatividades";
 import { useUsuarios } from "@/hooks/useUsuarios";
 import { useTenant } from "@/hooks/useTenant";
+import { useStatus } from "@/hooks/useStatus";
 import { cn, fmtDate } from "@/lib/utils";
 
-const STATUS_CONFIG: Record<
-  "nao_iniciada" | "em_andamento" | "concluida" | "cancelada",
-  { label: string; style: React.CSSProperties }
-> = {
-  nao_iniciada: { label: "Não iniciada", style: { background: "#F1EFE8", color: "#5F5E5A" } },
-  em_andamento: { label: "Em andamento", style: { background: "#E6F1FB", color: "#0C447C" } },
-  concluida:    { label: "Concluída",    style: { background: "#EAF3DE", color: "#27500A" } },
-  cancelada:    { label: "Cancelada",    style: { background: "#FCEBEB", color: "#791F1F" } },
-};
+function chipStyle(cor: string | null | undefined): React.CSSProperties {
+  const bg = cor && cor.trim() ? cor : "#2a2a3e";
+  return {
+    background: `${bg}33`,
+    color: "var(--text-primary)",
+    border: `1px solid ${bg}55`,
+  };
+}
 
 interface Props {
   atividadeId: string;
@@ -28,22 +28,35 @@ export function SubatividadesList({ atividadeId, readonly = false }: Props) {
   const { data: tenant } = useTenant();
   const { data: subs = [], isLoading } = useSubatividades(atividadeId);
   const { data: usuarios = [] } = useUsuarios(tenant?.id);
+  const { data: statusCfg = [], isLoading: loadingStatusCfg } = useStatus(tenant?.id, "subatividade", false);
   const { mutate: criar, isPending: criando } = useCreateSubatividade();
   const { mutate: atualizar } = useUpdateSubatividade();
   const { mutate: deletar } = useDeleteSubatividade();
+
+  const statusOrdenados = useMemo(
+    () => [...statusCfg].sort((a, b) => a.ordem - b.ordem),
+    [statusCfg]
+  );
+  const statusInicialId = useMemo(
+    () => statusOrdenados.find((s) => s.is_inicial)?.id,
+    [statusOrdenados]
+  );
 
   const [novoNome, setNovoNome] = useState("");
   const [novoPrazo, setNovoPrazo] = useState("");
   const [novoResp, setNovoResp] = useState("");
   const [adicionando, setAdicionando] = useState(false);
 
-  const totalValidas = subs.filter(s => s.status !== "cancelada").length;
-  const totalConcluidas = subs.filter(s => s.status === "concluida").length;
+  const totalValidas = subs.filter((s) => s.status !== "cancelada").length;
+  const totalConcluidas = subs.filter((s) => s.status === "concluida").length;
   const pct = totalValidas > 0 ? Math.round((totalConcluidas / totalValidas) * 100) : 0;
 
   const handleSubmitNova = (e: React.FormEvent) => {
     e.preventDefault();
     if (!novoNome.trim() || !novoPrazo || criando) return;
+    if (!statusInicialId) {
+      return;
+    }
     criar(
       {
         atividade_id: atividadeId,
@@ -51,6 +64,7 @@ export function SubatividadesList({ atividadeId, readonly = false }: Props) {
         prazo: novoPrazo,
         responsavel_id: novoResp || undefined,
         ordem: subs.length,
+        status_id: statusInicialId,
       },
       {
         onSuccess: () => {
@@ -63,13 +77,29 @@ export function SubatividadesList({ atividadeId, readonly = false }: Props) {
     );
   };
 
-  const handleStatus = (sub: { id: string; status: string }, novoStatus: string) => {
-    atualizar({ id: sub.id, atividadeId, status: novoStatus as any });
+  const handleStatus = (sub: { id: string }, novoStatusId: string) => {
+    if (!novoStatusId) return;
+    atualizar({ id: sub.id, atividadeId, status_id: novoStatusId });
   };
 
   const handleExecutada = (sub: { id: string }, val: boolean) => {
     atualizar({ id: sub.id, atividadeId, executada: val });
   };
+
+  const labelStatus = (sub: (typeof subs)[0]) =>
+    sub.status_nome?.trim() ||
+    statusOrdenados.find((s) => s.id === sub.status_id)?.nome ||
+    ({
+      nao_iniciada: "Não iniciada",
+      em_andamento: "Em andamento",
+      concluida: "Concluída",
+      cancelada: "Cancelada",
+    }[sub.status] ?? sub.status);
+
+  const corStatus = (sub: (typeof subs)[0]) =>
+    sub.status_cor?.trim() ||
+    statusOrdenados.find((s) => s.id === sub.status_id)?.cor ||
+    null;
 
   return (
     <div>
@@ -82,14 +112,20 @@ export function SubatividadesList({ atividadeId, readonly = false }: Props) {
           <span className="text-[10px] font-mono bg-[#1A1A2E] border border-white/[0.08] px-2 py-0.5 rounded text-[var(--text-muted)]">
             {totalValidas}/{totalConcluidas} existentes / executadas
           </span>
-          {subs.some(s => s.atrasada) && (
+          {subs.some((s) => s.atrasada) && (
             <span className="text-[10px] font-mono bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded">
-              {subs.filter(s => s.atrasada).length} atrasada(s)
+              {subs.filter((s) => s.atrasada).length} atrasada(s)
             </span>
           )}
         </div>
         <span className="text-[13px] font-mono font-medium text-[var(--accent-bright)]">{pct}%</span>
       </div>
+
+      {!loadingStatusCfg && statusOrdenados.length === 0 && (
+        <div className="text-[11px] text-amber-400/90 mb-2 leading-relaxed">
+          Defina os status de subatividade em Configurações → Status por módulo → Subatividade.
+        </div>
+      )}
 
       {/* Barra de progresso geral */}
       <div className="h-1.5 bg-[#050508] rounded-full overflow-hidden mb-3.5 border border-white/[0.04]">
@@ -129,8 +165,8 @@ export function SubatividadesList({ atividadeId, readonly = false }: Props) {
                 <input
                   type="checkbox"
                   checked={sub.executada || sub.status === "concluida"}
-                  disabled={readonly || sub.status === "cancelada"}
-                  onChange={e => handleExecutada(sub, e.target.checked)}
+                  disabled={readonly || sub.status === "cancelada" || statusOrdenados.length === 0}
+                  onChange={(e) => handleExecutada(sub, e.target.checked)}
                   className="mt-0.5 w-3.5 h-3.5 cursor-pointer rounded accent-emerald-500 flex-shrink-0"
                 />
 
@@ -145,21 +181,26 @@ export function SubatividadesList({ atividadeId, readonly = false }: Props) {
                   </div>
 
                   <div className="flex items-center flex-wrap gap-2 mt-1.5">
-                    {!readonly ? (
+                    {!readonly && statusOrdenados.length > 0 ? (
                       <select
-                        value={sub.status}
-                        onChange={e => handleStatus(sub, e.target.value)}
+                        value={sub.status_id ?? ""}
+                        onChange={(e) => handleStatus(sub, e.target.value)}
                         disabled={readonly}
-                        className="text-[10px] font-mono border-0 outline-none rounded px-1.5 py-0.5 cursor-pointer"
-                        style={STATUS_CONFIG[sub.status].style}
+                        className="text-[10px] font-mono border-0 outline-none rounded px-1.5 py-0.5 cursor-pointer max-w-[200px]"
+                        style={chipStyle(corStatus(sub))}
                       >
-                        {Object.entries(STATUS_CONFIG).map(([k, v]) => (
-                          <option key={k} value={k}>{v.label}</option>
+                        {statusOrdenados.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.nome}
+                          </option>
                         ))}
                       </select>
                     ) : (
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={STATUS_CONFIG[sub.status].style}>
-                        {STATUS_CONFIG[sub.status].label}
+                      <span
+                        className="text-[10px] font-mono px-1.5 py-0.5 rounded"
+                        style={chipStyle(corStatus(sub))}
+                      >
+                        {labelStatus(sub)}
                       </span>
                     )}
 
@@ -210,14 +251,14 @@ export function SubatividadesList({ atividadeId, readonly = false }: Props) {
         <form
           className="bg-[#0F0F1A] border border-indigo-500/30 rounded-[10px] p-3 flex flex-col gap-2.5"
           onSubmit={handleSubmitNova}
-          onKeyDown={e => {
+          onKeyDown={(e) => {
             if (e.key === "Enter" && e.repeat) e.preventDefault();
           }}
         >
           <input
             autoFocus
             value={novoNome}
-            onChange={e => setNovoNome(e.target.value)}
+            onChange={(e) => setNovoNome(e.target.value)}
             placeholder="Nome da subatividade *"
             className="w-full bg-transparent border-b border-white/[0.08] pb-1.5 text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-dim)]"
           />
@@ -227,7 +268,7 @@ export function SubatividadesList({ atividadeId, readonly = false }: Props) {
               <input
                 type="date"
                 value={novoPrazo}
-                onChange={e => setNovoPrazo(e.target.value)}
+                onChange={(e) => setNovoPrazo(e.target.value)}
                 className="w-full bg-[#141424] border border-white/[0.08] rounded-[8px] px-2.5 py-1.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-indigo-500/50"
               />
             </div>
@@ -235,11 +276,11 @@ export function SubatividadesList({ atividadeId, readonly = false }: Props) {
               <label className="text-[10px] text-[var(--text-muted)] block mb-1">Responsável</label>
               <select
                 value={novoResp}
-                onChange={e => setNovoResp(e.target.value)}
+                onChange={(e) => setNovoResp(e.target.value)}
                 className="w-full bg-[#141424] border border-white/[0.08] rounded-[8px] px-2.5 py-1.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-indigo-500/50"
               >
                 <option value="">— selecionar —</option>
-                {usuarios.map(u => (
+                {usuarios.map((u) => (
                   <option key={u.id} value={u.id}>{u.nome}</option>
                 ))}
               </select>
@@ -255,7 +296,7 @@ export function SubatividadesList({ atividadeId, readonly = false }: Props) {
             </button>
             <button
               type="submit"
-              disabled={!novoNome.trim() || !novoPrazo || criando}
+              disabled={!novoNome.trim() || !novoPrazo || criando || !statusInicialId}
               className="px-4 py-1.5 text-[12px] font-medium text-white bg-indigo-500 rounded-[8px] hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {criando ? "Salvando..." : "Adicionar"}
@@ -266,7 +307,8 @@ export function SubatividadesList({ atividadeId, readonly = false }: Props) {
         !readonly && (
           <button
             onClick={() => setAdicionando(true)}
-            className="w-full py-2 border border-dashed border-white/[0.12] rounded-[10px] text-[12px] text-[var(--text-muted)] hover:border-indigo-500/30 hover:text-[var(--accent-bright)] transition-all"
+            disabled={!statusInicialId}
+            className="w-full py-2 border border-dashed border-white/[0.12] rounded-[10px] text-[12px] text-[var(--text-muted)] hover:border-indigo-500/30 hover:text-[var(--accent-bright)] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
             + Adicionar subatividade
           </button>
