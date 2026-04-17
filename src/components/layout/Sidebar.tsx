@@ -1,7 +1,8 @@
 import { NavLink } from "react-router-dom";
 import { useMemo } from "react";
-import { cn } from "@/lib/utils";
+import { avatarInitials, cn } from "@/lib/utils";
 import { useTenant } from "@/hooks/useTenant";
+import { useAuth } from "@/hooks/useAuth";
 import { useAtividades } from "@/hooks/useAtividades";
 import {
   LayoutDashboard, FolderKanban, Layers, FolderOpen,
@@ -23,7 +24,10 @@ interface NavSection {
 }
 
 export default function Sidebar() {
-  const { tenantId } = useTenant();
+  const { user } = useAuth();
+  const { tenantId, nome, papelGlobal } = useTenant();
+  const displayName = nome ?? user?.email ?? "—";
+  const displayRole = papelGlobal?.trim() || "—";
   const { data: atividades = [] } = useAtividades(tenantId ?? undefined);
 
   const pendentes = useMemo(
@@ -123,11 +127,11 @@ export default function Sidebar() {
       <div className="mt-auto border-t border-white/[0.04] p-4">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-violet-400 flex items-center justify-center text-[10px] font-bold text-white">
-            AS
+            {nome ? avatarInitials(nome) : (user?.email?.slice(0, 2).toUpperCase() ?? "—")}
           </div>
-          <div>
-            <div className="text-[12px] font-medium text-[var(--text-primary)] truncate">Ana Silva</div>
-            <div className="text-[10px] font-mono text-[var(--text-muted)]">Admin</div>
+          <div className="min-w-0">
+            <div className="text-[12px] font-medium text-[var(--text-primary)] truncate">{displayName}</div>
+            <div className="text-[10px] font-mono text-[var(--text-muted)] truncate">{displayRole}</div>
           </div>
         </div>
       </div>

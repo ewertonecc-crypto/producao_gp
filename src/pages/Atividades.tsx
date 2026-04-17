@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
+import { SubatividadesList } from "@/components/subatividades/SubatividadesList";
 import { useTenant } from "@/hooks/useTenant";
 import { useAtividades, useDeleteAtividade } from "@/hooks/useAtividades";
 import { PageHeader } from "@/components/ui/page-header";
@@ -83,6 +84,7 @@ export default function Atividades() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editAtividadeId, setEditAtividadeId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AtividadeRow | null>(null);
+  const [expandida, setExpandida] = useState<string | null>(null);
 
   const closeModal = () => {
     setModalOpen(false);
@@ -372,68 +374,87 @@ export default function Atividades() {
               const pct = Math.round(a.percentual_concluido ?? 0);
               const statusCor = (a.status as { cor?: string } | null)?.cor ?? "#818CF8";
               const atrasado = a.data_fim_prevista && new Date(a.data_fim_prevista) < new Date() && pct < 100;
+              const isExpanded = expandida === a.id;
               return (
                 <div
                   key={a.id}
-                  className="bg-[#141424] border border-white/[0.08] rounded-2xl px-4 py-3.5 flex items-center gap-3.5 hover:border-indigo-500/30 cursor-pointer transition-all"
+                  className="bg-[#141424] border border-white/[0.08] rounded-2xl overflow-hidden hover:border-indigo-500/30 transition-all"
                 >
-                  <div className="w-0.5 h-9 rounded-full flex-shrink-0" style={{ background: statusCor }} />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-medium text-[var(--text-primary)] truncate">{a.nome}</div>
-                    <div className="flex items-center gap-2.5 mt-1 flex-wrap">
-                      <span className="font-mono text-[10.5px] text-[var(--text-muted)]">{a.codigo ?? "—"}</span>
-                      <span className="font-mono text-[10.5px] text-[var(--accent-bright)]">
-                        {(a.projeto as { codigo?: string; nome?: string } | null)?.codigo ??
-                          (a.projeto as { codigo?: string; nome?: string } | null)?.nome ??
-                          "—"}
+                  {/* Linha principal */}
+                  <div className="px-4 py-3.5 flex items-center gap-3.5 cursor-pointer"
+                    onClick={() => setExpandida(isExpanded ? null : a.id)}
+                  >
+                    <div className="w-0.5 h-9 rounded-full flex-shrink-0" style={{ background: statusCor }} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] font-medium text-[var(--text-primary)] truncate">{a.nome}</div>
+                      <div className="flex items-center gap-2.5 mt-1 flex-wrap">
+                        <span className="font-mono text-[10.5px] text-[var(--text-muted)]">{a.codigo ?? "—"}</span>
+                        <span className="font-mono text-[10.5px] text-[var(--accent-bright)]">
+                          {(a.projeto as { codigo?: string; nome?: string } | null)?.codigo ??
+                            (a.projeto as { codigo?: string; nome?: string } | null)?.nome ??
+                            "—"}
+                        </span>
+                        <span className="text-[10.5px] text-[var(--text-secondary)]">
+                          {(a.categoria as { nome?: string } | null)?.nome ?? "—"}
+                        </span>
+                        <StatusBadge nome={(a.status as { nome?: string } | null)?.nome} />
+                        <PrioBadge nome={(a.prioridade as { nome?: string } | null)?.nome} />
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setExpandida(isExpanded ? null : a.id); }}
+                          className="text-[10.5px] font-mono text-[var(--text-muted)] hover:text-[var(--accent-bright)] transition-colors"
+                        >
+                          {isExpanded ? "▲ Fechar" : "▼ Subatividades"}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Avatar nome={(a.responsavel as { nome?: string } | null)?.nome} index={i} />
+                      <span
+                        className={cn("text-[10.5px] font-mono", atrasado ? "text-rose-400" : dateColor(a.data_fim_prevista))}
+                      >
+                        {atrasado ? "⏱ ATRASO" : `⏱ ${fmtDate(a.data_fim_prevista)}`}
                       </span>
-                      <span className="text-[10.5px] text-[var(--text-secondary)]">
-                        {(a.categoria as { nome?: string } | null)?.nome ?? "—"}
-                      </span>
-                      <StatusBadge nome={(a.status as { nome?: string } | null)?.nome} />
-                      <PrioBadge nome={(a.prioridade as { nome?: string } | null)?.nome} />
+                      <div className="w-[80px]">
+                        <ProgressBar value={pct} />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 flex-shrink-0 text-[var(--text-muted)] hover:text-indigo-400"
+                        title="Editar atividade"
+                        aria-label="Editar atividade"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditAtividadeId(a.id);
+                          setModalOpen(true);
+                        }}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 flex-shrink-0 text-[var(--text-muted)] hover:text-rose-400"
+                        title="Excluir atividade"
+                        aria-label="Excluir atividade"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteTarget(a);
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <Avatar nome={(a.responsavel as { nome?: string } | null)?.nome} index={i} />
-                    <span
-                      className={cn("text-[10.5px] font-mono", atrasado ? "text-rose-400" : dateColor(a.data_fim_prevista))}
-                    >
-                      {atrasado ? "⏱ ATRASO" : `⏱ ${fmtDate(a.data_fim_prevista)}`}
-                    </span>
-                    <div className="w-[80px]">
-                      <ProgressBar value={pct} />
+
+                  {/* Painel de subatividades expandido */}
+                  {isExpanded && (
+                    <div className="px-4 py-3 bg-[#141424] border-t border-white/[0.04]">
+                      <SubatividadesList atividadeId={a.id} />
                     </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 flex-shrink-0 text-[var(--text-muted)] hover:text-indigo-400"
-                      title="Editar atividade"
-                      aria-label="Editar atividade"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditAtividadeId(a.id);
-                        setModalOpen(true);
-                      }}
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 flex-shrink-0 text-[var(--text-muted)] hover:text-rose-400"
-                      title="Excluir atividade"
-                      aria-label="Excluir atividade"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteTarget(a);
-                      }}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  )}
                 </div>
               );
             })}

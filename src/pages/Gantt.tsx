@@ -1,16 +1,20 @@
-import { useState, useRef, useCallback } from "react";
-import { differenceInDays, addDays, format } from "date-fns";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { differenceInDays, addDays, format, min as minDate, max as maxDate } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
 import { useTenant } from "@/hooks/useTenant";
 import { useProjetos } from "@/hooks/useProjetos";
 import { useGantt } from "@/hooks/useVisualizacoes";
 import { useDragActions } from "@/hooks/useAtividadesSync";
 import { cn } from "@/lib/utils";
 
-const COL_WIDTH = 140; // largura de cada mês em px
+const COL_WIDTH = 140;
+
+type GanttRow = NonNullable<ReturnType<typeof useGantt>["data"]>[number];
 
 export default function Gantt() {
-  const { data: tenant } = useTenant();
+  const { data: tenant, papelGlobal } = useTenant();
+  const podeEditar = papelGlobal !== "visualizador";
   const { data: projetos = [] } = useProjetos(tenant?.id);
   const [projetoId, setProjetoId] = useState("");
   const projetoAtivo = projetoId || projetos[0]?.id || "";
@@ -18,7 +22,9 @@ export default function Gantt() {
   const { data: atividades = [], isLoading } = useGantt(tenant?.id, projetoAtivo);
   const { moverBarraGantt } = useDragActions();
 
-  // Calcular limites da timeline
+  /** Datas otimistas pós-soltar até o refetch (revertidas em erro). */
+  const [dateOverrides, setDateOverrides] = useState<Record<string, { ini: string; fim: string }>>({});
+
   const projetoInicio = atividades[0]?.projeto_inicio
     ? new Date(atividades[0].projeto_inicio)
     : new Date();
@@ -27,7 +33,6 @@ export default function Gantt() {
     : addDays(projetoInicio, 90);
   const totalDias = Math.max(differenceInDays(projetoFim, projetoInicio), 1);
 
-  // Meses para header
   const meses: { label: string; dias: number }[] = [];
   let cur = new Date(projetoInicio.getFullYear(), projetoInicio.getMonth(), 1);
   while (cur <= projetoFim) {
@@ -38,22 +43,35 @@ export default function Gantt() {
     });
     cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
   }
-  const timelineWidth = meses.reduce((s, m) => s + (m.dias / totalDias) * (meses.length * COL_WIDTH), 0);
-  void timelineWidth;
 
-  // Posição/largura de uma atividade
-  const calcBar = (ativ: (typeof atividades)[number]) => {
-    const start = ativ.data_inicio_prevista ? new Date(ativ.data_inicio_prevista) : projetoInicio;
-    const end = new Date(ativ.data_fim_prevista ?? ativ.data_inicio_prevista ?? projetoInicio);
-    const left = Math.max((differenceInDays(start, projetoInicio) / totalDias) * 100, 0);
-    const width = Math.max((differenceInDays(end, start) / totalDias) * 100, 1);
-    return { left: `${left}%`, width: `${width}%` };
-  };
+  const getEffectiveRange = useCallback(
+    (ativ: GanttRow) => {
+      const o = ativ.id ? dateOverrides[ativ.id] : undefined;
+      if (o) {
+        return {
+          start: new Date(o.ini),
+          end: new Date(o.fim),
+        };
+      }
+      const start = ativ.data_inicio_prevista ? new Date(ativ.data_inicio_prevista) : projetoInicio;
+      const end = new Date(ativ.data_fim_prevista ?? ativ.data_inicio_prevista ?? projetoInicio);
+      return { start, end };
+    },
+    [dateOverrides, projetoInicio]
+  );
 
-  // Posição de hoje
+  const calcBarFromRange = useCallback(
+    (start: Date, end: Date) => {
+      const left = Math.max((differenceInDays(start, projetoInicio) / totalDias) * 100, 0);
+      const span = Math.max(differenceInDays(end, start), 0);
+      const width = Math.max((span / totalDias) * 100, 0.35);
+      return { left: `${left}%`, width: `${width}%` };
+    },
+    [projetoInicio, totalDias]
+  );
+
   const hojeOffset = `${Math.min(Math.max((differenceInDays(new Date(), projetoInicio) / totalDias) * 100, 0), 100)}%`;
 
-  // ── Drag horizontal da barra
   const dragState = useRef<{
     atividadeId: string;
     startX: number;
@@ -64,9 +82,19 @@ export default function Gantt() {
   } | null>(null);
 
   const [dragging, setDragging] = useState<string | null>(null);
+  /** Preview durante arraste (tooltip + datas efetivas no hint). */
+  const [dragPreview, setDragPreview] = useState<{
+    atividadeId: string;
+    inicio: Date;
+    fim: Date;
+    clientX: number;
+    clientY: number;
+  } | null>(null);
+
   const timelineRef = useRef<HTMLDivElement>(null);
-  /** Largura real da faixa temporal (as barras usam % deste elemento, não do viewport). */
   const timelineTrackRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number | null>(null);
+  const pendingMoveRef = useRef<MouseEvent | null>(null);
 
   const pxParaDias = useCallback(
     (px: number) => {
@@ -76,78 +104,186 @@ export default function Gantt() {
     [totalDias]
   );
 
+  const clampMove = useCallback(
+    (inicio: Date, fim: Date, duracao: number) => {
+      let ni = inicio;
+      let nf = fim;
+      if (ni < projetoInicio) {
+        ni = new Date(projetoInicio);
+        nf = addDays(ni, duracao);
+      }
+      if (nf > projetoFim) {
+        nf = new Date(projetoFim);
+        ni = addDays(nf, -duracao);
+      }
+      if (ni < projetoInicio) ni = new Date(projetoInicio);
+      return { novoInicio: ni, novoFim: maxDate([nf, ni]) };
+    },
+    [projetoInicio, projetoFim]
+  );
+
+  const clampResize = useCallback(
+    (inicio: Date, fim: Date) => {
+      let nf = minDate([fim, projetoFim]);
+      if (nf <= inicio) nf = addDays(inicio, 1);
+      return { novoInicio: inicio, novoFim: nf };
+    },
+    [projetoFim]
+  );
+
   const onBarMouseDown = useCallback(
-    (e: React.MouseEvent, ativ: (typeof atividades)[number], mode: "move" | "resize-right") => {
-      if (!ativ.id) return;
+    (e: React.MouseEvent, ativ: GanttRow, mode: "move" | "resize-right") => {
+      if (!podeEditar || !ativ.id) return;
       e.preventDefault();
-      const ini = ativ.data_inicio_prevista ? new Date(ativ.data_inicio_prevista) : projetoInicio;
-      const fim = new Date(ativ.data_fim_prevista ?? ativ.data_inicio_prevista ?? projetoInicio);
+      e.stopPropagation();
+      const { start: ini, end: fim } = getEffectiveRange(ativ);
+      const duracao = Math.max(differenceInDays(fim, ini), 0);
       dragState.current = {
         atividadeId: ativ.id,
         startX: e.clientX,
         startInicio: ini,
         startFim: fim,
-        duracao: differenceInDays(fim, ini),
+        duracao,
         mode,
       };
       setDragging(ativ.id);
 
-      const onMouseMove = (ev: MouseEvent) => {
-        if (!dragState.current) return;
-        const dx = ev.clientX - dragState.current.startX;
-        // Atualizar posição visual via CSS custom property (sem re-render)
-        const barEl = document.getElementById(`bar-${dragState.current.atividadeId}`);
-        if (barEl) barEl.style.transform = `translateX(${dx}px)`;
-      };
-
-      const onMouseUp = async (ev: MouseEvent) => {
-        if (!dragState.current) return;
+      const flushMove = () => {
+        rafRef.current = null;
+        const ev = pendingMoveRef.current;
+        if (!ev || !dragState.current) return;
         const dx = ev.clientX - dragState.current.startX;
         const deltaDias = pxParaDias(dx);
-        const { atividadeId, startInicio, startFim, mode: dragMode } = dragState.current;
+        const { startInicio, startFim, duracao: d, mode: dragMode } = dragState.current;
 
         let novoInicio = startInicio;
         let novoFim = startFim;
-
         if (dragMode === "move") {
           novoInicio = addDays(startInicio, deltaDias);
           novoFim = addDays(startFim, deltaDias);
-        } else if (dragMode === "resize-right") {
+          ({ novoInicio, novoFim } = clampMove(novoInicio, novoFim, d));
+        } else {
           novoFim = addDays(startFim, deltaDias);
-          if (novoFim <= novoInicio) novoFim = addDays(novoInicio, 1);
+          ({ novoInicio, novoFim } = clampResize(startInicio, novoFim));
         }
 
-        // Reset transform
-        const barEl = document.getElementById(`bar-${atividadeId}`);
-        if (barEl) barEl.style.transform = "";
+        setDragPreview({
+          atividadeId: dragState.current.atividadeId,
+          inicio: novoInicio,
+          fim: novoFim,
+          clientX: ev.clientX,
+          clientY: ev.clientY,
+        });
+
+        const barEl = document.getElementById(`gantt-bar-${dragState.current.atividadeId}`);
+        if (barEl) barEl.style.transform = `translateX(${dx}px)`;
+      };
+
+      const onMouseMove = (ev: MouseEvent) => {
+        if (!dragState.current) return;
+        pendingMoveRef.current = ev;
+        if (rafRef.current == null) {
+          rafRef.current = requestAnimationFrame(flushMove);
+        }
+      };
+
+      const onMouseUp = async (ev: MouseEvent) => {
+        document.body.style.userSelect = "";
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+        if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+        pendingMoveRef.current = null;
+
+        if (!dragState.current) return;
+        const dx = ev.clientX - dragState.current.startX;
+        const deltaDias = pxParaDias(dx);
+        const { atividadeId, startInicio, startFim, duracao: d, mode: dragMode } = dragState.current;
+
+        let novoInicio = startInicio;
+        let novoFim = startFim;
+        if (dragMode === "move") {
+          novoInicio = addDays(startInicio, deltaDias);
+          novoFim = addDays(startFim, deltaDias);
+          ({ novoInicio, novoFim } = clampMove(novoInicio, novoFim, d));
+        } else {
+          novoFim = addDays(startFim, deltaDias);
+          ({ novoInicio, novoFim } = clampResize(startInicio, novoFim));
+        }
+
+        const barEl = document.getElementById(`gantt-bar-${atividadeId}`);
+        if (barEl) {
+          barEl.style.transform = "";
+          barEl.classList.add("transition-transform", "duration-200", "ease-out");
+          window.setTimeout(() => barEl.classList.remove("transition-transform", "duration-200", "ease-out"), 220);
+        }
 
         dragState.current = null;
         setDragging(null);
+        setDragPreview(null);
 
-        await moverBarraGantt(
-          atividadeId,
-          format(novoInicio, "yyyy-MM-dd"),
-          format(novoFim, "yyyy-MM-dd")
-        );
+        const iniStr = format(novoInicio, "yyyy-MM-dd");
+        const fimStr = format(novoFim, "yyyy-MM-dd");
+        const unchanged =
+          format(startInicio, "yyyy-MM-dd") === iniStr && format(startFim, "yyyy-MM-dd") === fimStr;
+        if (unchanged) return;
 
-        document.removeEventListener("mousemove", onMouseMove);
-        document.removeEventListener("mouseup", onMouseUp);
+        setDateOverrides((prev) => ({ ...prev, [atividadeId]: { ini: iniStr, fim: fimStr } }));
+        try {
+          await moverBarraGantt(atividadeId, iniStr, fimStr);
+          setDateOverrides((prev) => {
+            const n = { ...prev };
+            delete n[atividadeId];
+            return n;
+          });
+        } catch (err) {
+          setDateOverrides((prev) => {
+            const n = { ...prev };
+            delete n[atividadeId];
+            return n;
+          });
+          const msg = err instanceof Error ? err.message : "Falha ao salvar datas";
+          toast.error(msg);
+        }
       };
 
+      document.body.style.userSelect = "none";
       document.addEventListener("mousemove", onMouseMove);
       document.addEventListener("mouseup", onMouseUp);
     },
-    [pxParaDias, moverBarraGantt, projetoInicio]
+    [
+      podeEditar,
+      getEffectiveRange,
+      pxParaDias,
+      clampMove,
+      clampResize,
+      moverBarraGantt,
+    ]
   );
+
+  useEffect(() => {
+    return () => {
+      document.body.style.userSelect = "";
+    };
+  }, []);
+
+  const trackMinWidth = meses.length * COL_WIDTH;
+
+  const tooltipText = useMemo(() => {
+    if (!dragPreview) return "";
+    const i = format(dragPreview.inicio, "dd/MM/yyyy", { locale: ptBR });
+    const f = format(dragPreview.fim, "dd/MM/yyyy", { locale: ptBR });
+    return `${i} → ${f}`;
+  }, [dragPreview]);
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
-      {/* Header */}
       <div className="px-7 pt-6 pb-5 border-b border-white/[0.04] flex items-center justify-between flex-shrink-0">
         <div>
           <h1 className="font-display font-bold text-[22px] tracking-tight text-[var(--text-primary)]">Gantt</h1>
           <p className="text-[12px] text-[var(--text-muted)] font-mono mt-0.5">
-            {atividades.length} atividade(s) · arraste para mover datas
+            {atividades.length} atividade(s)
+            {podeEditar ? " · arraste a barra para mover no tempo" : " · somente leitura"}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -170,8 +306,7 @@ export default function Gantt() {
         </div>
       </div>
 
-      {/* Legenda */}
-      <div className="px-7 py-3 flex gap-5 border-b border-white/[0.04] flex-shrink-0">
+      <div className="px-7 py-3 flex gap-5 border-b border-white/[0.04] flex-shrink-0 flex-wrap">
         {[
           { label: "Em andamento", color: "from-indigo-500 to-cyan-400" },
           { label: "Atrasado", color: "from-rose-500 to-amber-400" },
@@ -188,7 +323,6 @@ export default function Gantt() {
         </div>
       </div>
 
-      {/* Gantt body */}
       <div className="flex flex-1 overflow-hidden">
         {isLoading ? (
           <div className="p-7 text-[12px] font-mono text-[var(--text-muted)]">Carregando...</div>
@@ -198,9 +332,7 @@ export default function Gantt() {
           </div>
         ) : (
           <div className="flex flex-1 overflow-x-auto">
-            {/* Coluna de labels */}
             <div className="w-[240px] flex-shrink-0 border-r border-white/[0.04]">
-              {/* Header */}
               <div className="h-10 bg-[#141424] border-b border-white/[0.04] flex items-center px-4">
                 <span className="text-[10px] font-mono uppercase tracking-[0.08em] text-[var(--text-muted)]">
                   Atividade
@@ -217,9 +349,10 @@ export default function Gantt() {
               ))}
             </div>
 
-            {/* Timeline */}
-            <div className="flex-1 overflow-x-auto" ref={timelineRef}>
-              {/* Header de meses */}
+            <div
+              className={cn("flex-1 overflow-x-auto relative", dragPreview && "cursor-grabbing")}
+              ref={timelineRef}
+            >
               <div className="h-10 bg-[#141424] border-b border-white/[0.04] flex">
                 {meses.map((m, i) => (
                   <div
@@ -232,13 +365,14 @@ export default function Gantt() {
                 ))}
               </div>
 
-              {/* Área das barras */}
               <div
                 ref={timelineTrackRef}
-                className="relative"
-                style={{ width: `${meses.length * COL_WIDTH}px` }}
+                className="relative select-none"
+                style={{
+                  width: `${trackMinWidth}px`,
+                  minWidth: "100%",
+                }}
               >
-                {/* Linhas de grade vertical */}
                 <div className="absolute inset-0 flex pointer-events-none">
                   {meses.map((_, i) => (
                     <div
@@ -249,7 +383,6 @@ export default function Gantt() {
                   ))}
                 </div>
 
-                {/* Linha de hoje */}
                 <div
                   className="absolute top-0 bottom-0 w-px bg-rose-500/50 z-10 pointer-events-none"
                   style={{ left: hojeOffset }}
@@ -259,46 +392,83 @@ export default function Gantt() {
                   </span>
                 </div>
 
-                {/* Barras */}
+                {dragPreview && (
+                  <div
+                    className="fixed z-[100] pointer-events-none rounded-lg border border-indigo-500/40 bg-[#141424]/95 px-2.5 py-1.5 text-[10px] font-mono text-[var(--text-primary)] shadow-lg backdrop-blur-sm"
+                    style={{
+                      left: dragPreview.clientX + 12,
+                      top: dragPreview.clientY + 12,
+                    }}
+                  >
+                    <div>{tooltipText}</div>
+                    {(atividades.find((x) => x.id === dragPreview.atividadeId)?.depende_de_ids?.length ?? 0) >
+                      0 && (
+                      <div className="text-[9px] text-amber-400/90 mt-0.5">Dependências: validação no servidor</div>
+                    )}
+                  </div>
+                )}
+
                 {atividades.map((a) => {
                   if (!a.id) return null;
-                  const { left, width } = calcBar(a);
+                  const { start, end } = getEffectiveRange(a);
+                  const { left, width } = calcBarFromRange(start, end);
                   const pct = a.percentual_concluido ?? 0;
                   const barColor = a.esta_atrasada
                     ? "from-rose-500 to-amber-400"
                     : pct >= 100
                       ? "from-emerald-500 to-cyan-400"
                       : "from-indigo-500 to-cyan-400";
+                  const isDragging = dragging === a.id;
 
                   return (
-                    <div key={a.id} className="relative h-11 border-b border-white/[0.04] flex items-center group">
-                      {/* Barra background (planejado) */}
-                      <div className="absolute h-2 bg-white/[0.06] rounded-full" style={{ left, width }} />
-                      {/* Barra preenchida (progresso) */}
+                    <div
+                      key={a.id}
+                      className="relative h-11 border-b border-white/[0.04] flex items-center group/bar"
+                    >
                       <div
-                        id={`bar-${a.id}`}
+                        id={`gantt-bar-${a.id}`}
                         className={cn(
-                          "absolute h-2 rounded-full bg-gradient-to-r transition-none cursor-grab active:cursor-grabbing select-none",
-                          barColor,
-                          dragging === a.id && "opacity-70 scale-y-150"
+                          "absolute top-1/2 -translate-y-1/2 flex items-center will-change-transform",
+                          isDragging && "z-30 opacity-95 scale-y-[1.35] ring-2 ring-indigo-400/50 rounded-sm"
                         )}
-                        style={{ left, width: `calc(${width} * ${pct / 100})` }}
-                        onMouseDown={(e) => onBarMouseDown(e, a, "move")}
-                        title={`${a.nome} — ${pct}% — Arraste para mover`}
-                      />
-                      {/* Handle de resize (direita) */}
-                      <div
-                        className={cn(
-                          "absolute w-2 h-4 rounded-sm bg-white/20 cursor-ew-resize opacity-0 group-hover:opacity-100 transition-opacity",
-                          "hover:bg-indigo-400/60"
-                        )}
-                        style={{ left: `calc(${left} + ${width} * ${pct / 100} - 4px)` }}
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          onBarMouseDown(e, a, "resize-right");
-                        }}
-                        title="Arrastar para redimensionar"
-                      />
+                        style={{ left, width }}
+                      >
+                        <div
+                          className={cn(
+                            "relative w-full rounded-full overflow-visible touch-none",
+                            podeEditar ? "cursor-grab active:cursor-grabbing" : "cursor-not-allowed opacity-75"
+                          )}
+                          style={{ height: 10 }}
+                          onMouseDown={(e) => onBarMouseDown(e, a, "move")}
+                          title={
+                            podeEditar
+                              ? `${a.nome} — ${pct}% — Arraste para mover (mantém a duração)`
+                              : `${a.nome} — leitura`
+                          }
+                        >
+                          <div className="absolute inset-0 h-2 top-1/2 -translate-y-1/2 bg-white/[0.08] rounded-full group-hover/bar:bg-white/[0.12] transition-colors" />
+                          <div
+                            className={cn(
+                              "absolute left-0 top-1/2 -translate-y-1/2 h-2 rounded-full bg-gradient-to-r pointer-events-none",
+                              barColor
+                            )}
+                            style={{ width: `${pct}%`, maxWidth: "100%" }}
+                          />
+                        </div>
+                      </div>
+
+                      {podeEditar && (
+                        <div
+                          className={cn(
+                            "absolute top-1/2 -translate-y-1/2 w-2.5 h-5 rounded-sm bg-white/25 cursor-ew-resize z-40",
+                            "opacity-0 group-hover/bar:opacity-100 hover:bg-indigo-400/70 hover:opacity-100 transition-opacity",
+                            isDragging && "opacity-100"
+                          )}
+                          style={{ left: `calc(${left} + ${width} - 5px)` }}
+                          onMouseDown={(e) => onBarMouseDown(e, a, "resize-right")}
+                          title="Arrastar para alterar data de fim"
+                        />
+                      )}
                     </div>
                   );
                 })}

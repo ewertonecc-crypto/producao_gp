@@ -21,11 +21,16 @@ import Gantt from "@/pages/Gantt";
 import Kanban from "@/pages/Kanban";
 import MapaEstrategico from "@/pages/MapaEstrategico";
 import NotFound from "@/pages/NotFound";
+import RecuperarSenha from "@/pages/auth/RecuperarSenha";
+import NovaSenha from "@/pages/auth/NovaSenha";
 
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/auth/recuperar-senha" element={<RecuperarSenha />} />
+      <Route path="/auth/nova-senha" element={<NovaSenha />} />
+      <Route path="/auth/aceitar-convite" element={<NovaSenha />} />
       <Route path="/" element={<RequireAuth><AppLayout /></RequireAuth>}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />

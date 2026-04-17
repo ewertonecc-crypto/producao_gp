@@ -86,6 +86,9 @@ export function useDragActions() {
       if (error) throw error;
       qc.invalidateQueries({ queryKey: ["v_gantt"] });
       qc.invalidateQueries({ queryKey: ["v_agenda"] });
+      qc.invalidateQueries({ queryKey: ["v_kanban"] });
+      qc.invalidateQueries({ queryKey: ["atividades"] });
+      qc.invalidateQueries({ queryKey: ["v_mapa_estrategico"] });
     },
     [qc]
   );
