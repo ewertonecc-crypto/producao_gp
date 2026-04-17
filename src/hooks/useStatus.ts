@@ -6,9 +6,13 @@ import { toast } from "sonner";
 type StatusInsert = Database["public"]["Tables"]["status"]["Insert"];
 type StatusUpdate = Database["public"]["Tables"]["status"]["Update"];
 type PrioridadeInsert = Database["public"]["Tables"]["prioridades"]["Insert"];
+type PrioridadeUpdate = Database["public"]["Tables"]["prioridades"]["Update"];
 type CategoriaInsert = Database["public"]["Tables"]["categorias_atividade"]["Insert"];
+type CategoriaUpdate = Database["public"]["Tables"]["categorias_atividade"]["Update"];
 type TiposRecursoInsert = Database["public"]["Tables"]["tipos_recurso"]["Insert"];
+type TiposRecursoUpdate = Database["public"]["Tables"]["tipos_recurso"]["Update"];
 type TiposCadastroInsert = Database["public"]["Tables"]["tipos_cadastro"]["Insert"];
+type TiposCadastroUpdate = Database["public"]["Tables"]["tipos_cadastro"]["Update"];
 export type ConfiguracoesTenant = Database["public"]["Tables"]["configuracoes_tenant"]["Row"];
 
 export function useStatus(tenantId: string | undefined, modulo?: string, includeInactive?: boolean) {
@@ -169,7 +173,7 @@ export function useUpdateStatusItem() {
     mutationFn: async ({
       id,
       ...patch
-    }: { id: string } & Partial<Pick<StatusUpdate, "is_final" | "is_inicial">>) => {
+    }: { id: string } & Partial<Pick<StatusUpdate, "is_final" | "is_inicial" | "nome" | "cor">>) => {
       const { error } = await supabase.from("status").update(patch).eq("id", id);
       if (error) throw error;
     },
@@ -200,6 +204,24 @@ export function useCreatePrioridadeItem() {
   });
 }
 
+export function useUpdatePrioridadeItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...patch
+    }: { id: string } & Partial<Pick<PrioridadeUpdate, "nome" | "cor" | "ordem">>) => {
+      const { error } = await supabase.from("prioridades").update(patch).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["prioridades"] });
+      toast.success("Prioridade atualizada.");
+    },
+    onError: (e: Error) => toast.error("Erro: " + e.message),
+  });
+}
+
 export function useCreateCategoriaAtividadeItem() {
   const qc = useQueryClient();
   return useMutation({
@@ -211,6 +233,24 @@ export function useCreateCategoriaAtividadeItem() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["categorias_atividade"] });
       toast.success("Categoria adicionada.");
+    },
+    onError: (e: Error) => toast.error("Erro: " + e.message),
+  });
+}
+
+export function useUpdateCategoriaAtividadeItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...patch
+    }: { id: string } & Partial<Pick<CategoriaUpdate, "nome" | "cor">>) => {
+      const { error } = await supabase.from("categorias_atividade").update(patch).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["categorias_atividade"] });
+      toast.success("Categoria atualizada.");
     },
     onError: (e: Error) => toast.error("Erro: " + e.message),
   });
@@ -232,6 +272,24 @@ export function useCreateTipoRecurso() {
   });
 }
 
+export function useUpdateTipoRecurso() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...patch
+    }: { id: string } & Partial<Pick<TiposRecursoUpdate, "nome" | "descricao">>) => {
+      const { error } = await supabase.from("tipos_recurso").update(patch).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tipos_recurso"] });
+      toast.success("Tipo de recurso atualizado.");
+    },
+    onError: (e: Error) => toast.error("Erro: " + e.message),
+  });
+}
+
 export function useCreateTipoCadastro() {
   const qc = useQueryClient();
   return useMutation({
@@ -243,6 +301,24 @@ export function useCreateTipoCadastro() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tipos_cadastro"] });
       toast.success("Tipo de cadastro adicionado.");
+    },
+    onError: (e: Error) => toast.error("Erro: " + e.message),
+  });
+}
+
+export function useUpdateTipoCadastro() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...patch
+    }: { id: string } & Partial<Pick<TiposCadastroUpdate, "nome" | "descricao" | "modulo">>) => {
+      const { error } = await supabase.from("tipos_cadastro").update(patch).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tipos_cadastro"] });
+      toast.success("Tipo de cadastro atualizado.");
     },
     onError: (e: Error) => toast.error("Erro: " + e.message),
   });

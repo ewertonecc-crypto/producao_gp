@@ -116,8 +116,9 @@ export function useSubatividadesResumo(atividadeIds: string[]) {
         map.set(id, { concluidas: 0, total: 0 });
       }
       if (atividadeIds.length === 0) return map;
+      /** Tabela base: 1 linha por subatividade e `atividade_id` fiel ao vínculo (a view pode duplicar por JOINs). */
       const { data, error } = await supabase
-        .from("v_subatividades" as any)
+        .from("subatividades" as any)
         .select("atividade_id, status")
         .in("atividade_id", atividadeIds);
       if (error) throw error;

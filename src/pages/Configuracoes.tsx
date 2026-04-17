@@ -9,6 +9,7 @@ import {
   LayoutGrid,
   Map,
   Palette,
+  Pencil,
   Settings2,
   Shield,
   Tag,
@@ -31,6 +32,10 @@ import {
   useUpdateTenantConfig,
   useSoftDeleteStatus,
   useUpdateStatusItem,
+  useUpdatePrioridadeItem,
+  useUpdateCategoriaAtividadeItem,
+  useUpdateTipoRecurso,
+  useUpdateTipoCadastro,
 } from "@/hooks/useStatus";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -149,6 +154,10 @@ export default function Configuracoes() {
   const updateConfigMut = useUpdateTenantConfig();
   const softDeleteStatus = useSoftDeleteStatus();
   const updateStatus = useUpdateStatusItem();
+  const updatePrio = useUpdatePrioridadeItem();
+  const updateCat = useUpdateCategoriaAtividadeItem();
+  const updateTipoRec = useUpdateTipoRecurso();
+  const updateTipoCad = useUpdateTipoCadastro();
 
   const [openSection, setOpenSection] = useState<SectionId | null>(null);
   const toggleSection = useCallback((id: SectionId) => {
@@ -169,6 +178,12 @@ export default function Configuracoes() {
   const [novaCat, setNovaCat] = useState({ nome: "", cor: "#6366F1" });
   const [novoTipoRec, setNovoTipoRec] = useState({ nome: "", descricao: "" });
   const [novoTipoCad, setNovoTipoCad] = useState({ nome: "", descricao: "", modulo: "portfolio" });
+
+  const [editStatus, setEditStatus] = useState<{ id: string; nome: string; cor: string } | null>(null);
+  const [editPrio, setEditPrio] = useState<{ id: string; nome: string; cor: string } | null>(null);
+  const [editCat, setEditCat] = useState<{ id: string; nome: string; cor: string } | null>(null);
+  const [editTipoRec, setEditTipoRec] = useState<{ id: string; nome: string; descricao: string } | null>(null);
+  const [editTipoCad, setEditTipoCad] = useState<{ id: string; nome: string; descricao: string; modulo: string } | null>(null);
 
   const [nomeSistema, setNomeSistema] = useState("");
   const [corPrimaria, setCorPrimaria] = useState("#6366F1");
@@ -331,16 +346,35 @@ export default function Configuracoes() {
             ) : (
               statusDoModulo.map((s) => {
                 const podeRemover = !s.is_inicial && !s.is_final;
+                const isEditing = editStatus?.id === s.id;
                 return (
                   <li
                     key={s.id}
                     className="py-2.5 border-b border-white/[0.04] flex items-center gap-3 flex-wrap"
                   >
-                    <span
-                      className="h-3 w-3 rounded-full shrink-0 border border-white/10"
-                      style={{ backgroundColor: s.cor ?? "#6366f1" }}
-                    />
-                    <span className="text-[13px] text-[var(--text-primary)] flex-1 min-w-[120px]">{s.nome}</span>
+                    {isEditing && editStatus ? (
+                      <>
+                        <input
+                          type="color"
+                          className="h-9 w-12 rounded-lg border border-white/[0.12] bg-[#141424] cursor-pointer p-0.5 shrink-0"
+                          value={editStatus.cor}
+                          onChange={(e) => setEditStatus({ ...editStatus, cor: e.target.value })}
+                        />
+                        <input
+                          className={cn(inputClass, "flex-1 min-w-[120px]")}
+                          value={editStatus.nome}
+                          onChange={(e) => setEditStatus({ ...editStatus, nome: e.target.value })}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <span
+                          className="h-3 w-3 rounded-full shrink-0 border border-white/10"
+                          style={{ backgroundColor: s.cor ?? "#6366f1" }}
+                        />
+                        <span className="text-[13px] text-[var(--text-primary)] flex-1 min-w-[120px]">{s.nome}</span>
+                      </>
+                    )}
                     <div className="flex flex-wrap items-center gap-3 shrink-0">
                       <label className="flex items-center gap-1.5 cursor-pointer text-[10px] font-mono uppercase tracking-wide text-[var(--text-muted)]">
                         <input
@@ -374,32 +408,74 @@ export default function Configuracoes() {
                         inativo
                       </span>
                     )}
-                    <div className="ml-auto shrink-0">
-                      {podeRemover ? (
+                    {isEditing && editStatus ? (
+                      <div className="ml-auto flex items-center gap-1.5 shrink-0">
+                        <Button
+                          size="sm"
+                          type="button"
+                          className="h-8 text-[11px]"
+                          disabled={!editStatus.nome.trim() || updateStatus.isPending}
+                          onClick={() =>
+                            updateStatus.mutate(
+                              { id: editStatus.id, nome: editStatus.nome.trim(), cor: editStatus.cor },
+                              {
+                                onSuccess: () => {
+                                  toast.success("Status atualizado.");
+                                  setEditStatus(null);
+                                },
+                              }
+                            )
+                          }
+                        >
+                          Salvar
+                        </Button>
                         <button
                           type="button"
-                          className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-rose-400 hover:bg-rose-500/10"
-                          disabled={softDeleteStatus.isPending}
+                          className="px-2 py-1 rounded-lg text-[11px] text-[var(--text-muted)] hover:bg-white/[0.06]"
+                          onClick={() => setEditStatus(null)}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="ml-auto flex items-center gap-0.5 shrink-0">
+                        <button
+                          type="button"
+                          className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-indigo-300 hover:bg-indigo-500/10"
                           onClick={(e) => {
-                          e.stopPropagation();
-                          softDeleteStatus.mutate({ id: s.id });
-                        }}
-                          aria-label="Desativar status"
+                            e.stopPropagation();
+                            setEditStatus({ id: s.id, nome: s.nome, cor: s.cor ?? "#6366F1" });
+                          }}
+                          aria-label="Editar status"
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Pencil className="h-3.5 w-3.5" />
                         </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="p-1.5 rounded-lg text-white/[0.15] cursor-not-allowed"
-                          title="Status inicial ou final não podem ser removidos; são usados pelo fluxo do sistema."
-                          disabled
-                          aria-label="Não é possível remover"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
+                        {podeRemover ? (
+                          <button
+                            type="button"
+                            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-rose-400 hover:bg-rose-500/10"
+                            disabled={softDeleteStatus.isPending}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              softDeleteStatus.mutate({ id: s.id });
+                            }}
+                            aria-label="Desativar status"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="p-1.5 rounded-lg text-white/[0.15] cursor-not-allowed"
+                            title="Status inicial ou final não podem ser removidos; são usados pelo fluxo do sistema."
+                            disabled
+                            aria-label="Não é possível remover"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </li>
                 );
               })
@@ -458,21 +534,76 @@ export default function Configuracoes() {
           }
         >
           <ul>
-            {prioridades.map((p) => (
-              <li key={p.id} className="py-2.5 border-b border-white/[0.04] flex items-center gap-3">
-                <span
-                  className="h-3 w-3 rounded-full shrink-0 border border-white/10"
-                  style={{ backgroundColor: p.cor ?? "#6366f1" }}
-                />
-                <span className="text-[13px] text-[var(--text-primary)] flex-1">{p.nome}</span>
-                <span className="text-[11px] font-mono text-[var(--text-muted)]">ordem {p.ordem}</span>
-                {p.is_ativo === false && (
-                  <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-white/[0.06] text-[var(--text-muted)]">
-                    inativo
-                  </span>
-                )}
-              </li>
-            ))}
+            {prioridades.map((p) => {
+              const isEditing = editPrio?.id === p.id;
+              return (
+                <li key={p.id} className="py-2.5 border-b border-white/[0.04] flex items-center gap-3 flex-wrap">
+                  {isEditing && editPrio ? (
+                    <>
+                      <input
+                        type="color"
+                        className="h-9 w-12 rounded-lg border border-white/[0.12] bg-[#141424] cursor-pointer p-0.5 shrink-0"
+                        value={editPrio.cor}
+                        onChange={(e) => setEditPrio({ ...editPrio, cor: e.target.value })}
+                      />
+                      <input
+                        className={cn(inputClass, "flex-1 min-w-[120px]")}
+                        value={editPrio.nome}
+                        onChange={(e) => setEditPrio({ ...editPrio, nome: e.target.value })}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <span
+                        className="h-3 w-3 rounded-full shrink-0 border border-white/10"
+                        style={{ backgroundColor: p.cor ?? "#6366f1" }}
+                      />
+                      <span className="text-[13px] text-[var(--text-primary)] flex-1 min-w-[100px]">{p.nome}</span>
+                    </>
+                  )}
+                  <span className="text-[11px] font-mono text-[var(--text-muted)]">ordem {p.ordem}</span>
+                  {p.is_ativo === false && (
+                    <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-white/[0.06] text-[var(--text-muted)]">
+                      inativo
+                    </span>
+                  )}
+                  {isEditing && editPrio ? (
+                    <div className="ml-auto flex items-center gap-1.5 shrink-0">
+                      <Button
+                        size="sm"
+                        type="button"
+                        className="h-8 text-[11px]"
+                        disabled={!editPrio.nome.trim() || updatePrio.isPending}
+                        onClick={() =>
+                          updatePrio.mutate(
+                            { id: editPrio.id, nome: editPrio.nome.trim(), cor: editPrio.cor },
+                            { onSuccess: () => setEditPrio(null) }
+                          )
+                        }
+                      >
+                        Salvar
+                      </Button>
+                      <button
+                        type="button"
+                        className="px-2 py-1 rounded-lg text-[11px] text-[var(--text-muted)] hover:bg-white/[0.06]"
+                        onClick={() => setEditPrio(null)}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="ml-auto p-1.5 rounded-lg text-[var(--text-muted)] hover:text-indigo-300 hover:bg-indigo-500/10 shrink-0"
+                      onClick={() => setEditPrio({ id: p.id, nome: p.nome, cor: p.cor ?? "#6366F1" })}
+                      aria-label="Editar prioridade"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </SectionShell>
 
@@ -526,20 +657,75 @@ export default function Configuracoes() {
           }
         >
           <ul>
-            {categorias.map((c) => (
-              <li key={c.id} className="py-2.5 border-b border-white/[0.04] flex items-center gap-3">
-                <span
-                  className="h-3 w-3 rounded-full shrink-0 border border-white/10"
-                  style={{ backgroundColor: c.cor ?? "#6366f1" }}
-                />
-                <span className="text-[13px] text-[var(--text-primary)] flex-1">{c.nome}</span>
-                {c.is_ativo === false && (
-                  <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-white/[0.06] text-[var(--text-muted)]">
-                    inativo
-                  </span>
-                )}
-              </li>
-            ))}
+            {categorias.map((c) => {
+              const isEditing = editCat?.id === c.id;
+              return (
+                <li key={c.id} className="py-2.5 border-b border-white/[0.04] flex items-center gap-3 flex-wrap">
+                  {isEditing && editCat ? (
+                    <>
+                      <input
+                        type="color"
+                        className="h-9 w-12 rounded-lg border border-white/[0.12] bg-[#141424] cursor-pointer p-0.5 shrink-0"
+                        value={editCat.cor}
+                        onChange={(e) => setEditCat({ ...editCat, cor: e.target.value })}
+                      />
+                      <input
+                        className={cn(inputClass, "flex-1 min-w-[120px]")}
+                        value={editCat.nome}
+                        onChange={(e) => setEditCat({ ...editCat, nome: e.target.value })}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <span
+                        className="h-3 w-3 rounded-full shrink-0 border border-white/10"
+                        style={{ backgroundColor: c.cor ?? "#6366f1" }}
+                      />
+                      <span className="text-[13px] text-[var(--text-primary)] flex-1 min-w-[100px]">{c.nome}</span>
+                    </>
+                  )}
+                  {c.is_ativo === false && (
+                    <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-white/[0.06] text-[var(--text-muted)]">
+                      inativo
+                    </span>
+                  )}
+                  {isEditing && editCat ? (
+                    <div className="ml-auto flex items-center gap-1.5 shrink-0">
+                      <Button
+                        size="sm"
+                        type="button"
+                        className="h-8 text-[11px]"
+                        disabled={!editCat.nome.trim() || updateCat.isPending}
+                        onClick={() =>
+                          updateCat.mutate(
+                            { id: editCat.id, nome: editCat.nome.trim(), cor: editCat.cor },
+                            { onSuccess: () => setEditCat(null) }
+                          )
+                        }
+                      >
+                        Salvar
+                      </Button>
+                      <button
+                        type="button"
+                        className="px-2 py-1 rounded-lg text-[11px] text-[var(--text-muted)] hover:bg-white/[0.06]"
+                        onClick={() => setEditCat(null)}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="ml-auto p-1.5 rounded-lg text-[var(--text-muted)] hover:text-indigo-300 hover:bg-indigo-500/10 shrink-0"
+                      onClick={() => setEditCat({ id: c.id, nome: c.nome, cor: c.cor ?? "#6366F1" })}
+                      aria-label="Editar categoria"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </SectionShell>
 
@@ -619,21 +805,83 @@ export default function Configuracoes() {
           }
         >
           <ul>
-            {tiposRecurso.map((t) => (
-              <li key={t.id} className="py-2.5 border-b border-white/[0.04] flex items-center gap-3 flex-wrap">
-                <span className="text-[13px] text-[var(--text-primary)] font-medium">{t.nome}</span>
-                {t.descricao ? (
-                  <span className="text-[12px] text-[var(--text-muted)] flex-1 min-w-[140px]">{t.descricao}</span>
-                ) : (
-                  <span className="flex-1" />
-                )}
-                {t.is_ativo === false && (
-                  <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-white/[0.06] text-[var(--text-muted)]">
-                    inativo
-                  </span>
-                )}
-              </li>
-            ))}
+            {tiposRecurso.map((t) => {
+              const isEditing = editTipoRec?.id === t.id;
+              return (
+                <li key={t.id} className="py-2.5 border-b border-white/[0.04] flex items-center gap-3 flex-wrap">
+                  {isEditing && editTipoRec ? (
+                    <>
+                      <input
+                        className={cn(inputClass, "min-w-[120px] flex-1")}
+                        value={editTipoRec.nome}
+                        onChange={(e) => setEditTipoRec({ ...editTipoRec, nome: e.target.value })}
+                        placeholder="Nome"
+                      />
+                      <input
+                        className={cn(inputClass, "min-w-[160px] flex-1")}
+                        value={editTipoRec.descricao}
+                        onChange={(e) => setEditTipoRec({ ...editTipoRec, descricao: e.target.value })}
+                        placeholder="Descrição"
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-[13px] text-[var(--text-primary)] font-medium">{t.nome}</span>
+                      {t.descricao ? (
+                        <span className="text-[12px] text-[var(--text-muted)] flex-1 min-w-[140px]">{t.descricao}</span>
+                      ) : (
+                        <span className="flex-1" />
+                      )}
+                    </>
+                  )}
+                  {t.is_ativo === false && (
+                    <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-white/[0.06] text-[var(--text-muted)]">
+                      inativo
+                    </span>
+                  )}
+                  {isEditing && editTipoRec ? (
+                    <div className="ml-auto flex items-center gap-1.5 shrink-0">
+                      <Button
+                        size="sm"
+                        type="button"
+                        className="h-8 text-[11px]"
+                        disabled={!editTipoRec.nome.trim() || updateTipoRec.isPending}
+                        onClick={() =>
+                          updateTipoRec.mutate(
+                            {
+                              id: editTipoRec.id,
+                              nome: editTipoRec.nome.trim(),
+                              descricao: editTipoRec.descricao.trim() || null,
+                            },
+                            { onSuccess: () => setEditTipoRec(null) }
+                          )
+                        }
+                      >
+                        Salvar
+                      </Button>
+                      <button
+                        type="button"
+                        className="px-2 py-1 rounded-lg text-[11px] text-[var(--text-muted)] hover:bg-white/[0.06]"
+                        onClick={() => setEditTipoRec(null)}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="ml-auto p-1.5 rounded-lg text-[var(--text-muted)] hover:text-indigo-300 hover:bg-indigo-500/10 shrink-0"
+                      onClick={() =>
+                        setEditTipoRec({ id: t.id, nome: t.nome, descricao: t.descricao ?? "" })
+                      }
+                      aria-label="Editar tipo de recurso"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </SectionShell>
 
@@ -708,17 +956,98 @@ export default function Configuracoes() {
             {tiposCadDoModulo.length === 0 ? (
               <li className="py-3 text-[12px] text-[var(--text-muted)]">Nenhum tipo cadastrado.</li>
             ) : (
-              tiposCadDoModulo.map((t) => (
-                <li key={t.id} className="py-2.5 border-b border-white/[0.04] flex items-center gap-3">
-                  <span className="text-[13px] text-[var(--text-primary)] flex-1">{t.nome}</span>
-                  {t.descricao ? <span className="text-[12px] text-[var(--text-muted)]">{t.descricao}</span> : null}
-                  {t.is_ativo === false && (
-                    <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-white/[0.06] text-[var(--text-muted)]">
-                      inativo
-                    </span>
-                  )}
-                </li>
-              ))
+              tiposCadDoModulo.map((t) => {
+                const isEditing = editTipoCad?.id === t.id;
+                return (
+                  <li key={t.id} className="py-2.5 border-b border-white/[0.04] flex items-center gap-3 flex-wrap">
+                    {isEditing && editTipoCad ? (
+                      <>
+                        <input
+                          className={cn(inputClass, "min-w-[100px] flex-1")}
+                          value={editTipoCad.nome}
+                          onChange={(e) => setEditTipoCad({ ...editTipoCad, nome: e.target.value })}
+                          placeholder="Nome"
+                        />
+                        <input
+                          className={cn(inputClass, "min-w-[140px] flex-1")}
+                          value={editTipoCad.descricao}
+                          onChange={(e) => setEditTipoCad({ ...editTipoCad, descricao: e.target.value })}
+                          placeholder="Descrição"
+                        />
+                        <select
+                          className={cn(inputClass, "w-[130px]")}
+                          value={editTipoCad.modulo}
+                          onChange={(e) => setEditTipoCad({ ...editTipoCad, modulo: e.target.value })}
+                        >
+                          {MODULOS_TIPO_CAD.map((m) => (
+                            <option key={m.value} value={m.value}>
+                              {m.label}
+                            </option>
+                          ))}
+                        </select>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-[13px] text-[var(--text-primary)] flex-1 min-w-[100px]">{t.nome}</span>
+                        {t.descricao ? (
+                          <span className="text-[12px] text-[var(--text-muted)] flex-1 min-w-[120px]">{t.descricao}</span>
+                        ) : null}
+                      </>
+                    )}
+                    {t.is_ativo === false && (
+                      <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-white/[0.06] text-[var(--text-muted)]">
+                        inativo
+                      </span>
+                    )}
+                    {isEditing && editTipoCad ? (
+                      <div className="ml-auto flex items-center gap-1.5 shrink-0 w-full sm:w-auto justify-end">
+                        <Button
+                          size="sm"
+                          type="button"
+                          className="h-8 text-[11px]"
+                          disabled={!editTipoCad.nome.trim() || updateTipoCad.isPending}
+                          onClick={() =>
+                            updateTipoCad.mutate(
+                              {
+                                id: editTipoCad.id,
+                                nome: editTipoCad.nome.trim(),
+                                descricao: editTipoCad.descricao.trim() || null,
+                                modulo: editTipoCad.modulo,
+                              },
+                              { onSuccess: () => setEditTipoCad(null) }
+                            )
+                          }
+                        >
+                          Salvar
+                        </Button>
+                        <button
+                          type="button"
+                          className="px-2 py-1 rounded-lg text-[11px] text-[var(--text-muted)] hover:bg-white/[0.06]"
+                          onClick={() => setEditTipoCad(null)}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        className="ml-auto p-1.5 rounded-lg text-[var(--text-muted)] hover:text-indigo-300 hover:bg-indigo-500/10 shrink-0"
+                        onClick={() =>
+                          setEditTipoCad({
+                            id: t.id,
+                            nome: t.nome,
+                            descricao: t.descricao ?? "",
+                            modulo: t.modulo,
+                          })
+                        }
+                        aria-label="Editar tipo de cadastro"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </li>
+                );
+              })
             )}
           </ul>
         </SectionShell>

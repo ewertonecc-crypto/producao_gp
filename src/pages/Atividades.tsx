@@ -158,7 +158,8 @@ export default function Atividades() {
   }, [atividades]);
 
   const byTabIds = useMemo(() => byTab.map((a) => a.id), [byTab]);
-  const { data: subResumo, isPending: subResumoPending } = useSubatividadesResumo(byTabIds);
+  const { data: subResumo, isPending: subResumoPending, isError: subResumoError } =
+    useSubatividadesResumo(byTabIds);
 
   const filtered = useMemo(() => {
     return byTab.filter((a) => {
@@ -383,11 +384,13 @@ export default function Atividades() {
               const isExpanded = expandida === a.id;
               const sub = subResumo?.get(a.id);
               const subFrac =
-                subResumo == null
-                  ? subResumoPending
-                    ? "—/—"
-                    : "0/0"
-                  : `${sub?.total ?? 0}/${sub?.concluidas ?? 0}`;
+                subResumoError
+                  ? "—/—"
+                  : subResumo == null
+                    ? subResumoPending
+                      ? "—/—"
+                      : "0/0"
+                    : `${sub?.total ?? 0}/${sub?.concluidas ?? 0}`;
               return (
                 <div
                   key={a.id}

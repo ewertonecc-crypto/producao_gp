@@ -10,12 +10,13 @@ import { useTenant } from "@/hooks/useTenant";
 import { useStatus } from "@/hooks/useStatus";
 import { cn, fmtDate } from "@/lib/utils";
 
-function chipStyle(cor: string | null | undefined): React.CSSProperties {
-  const bg = cor && cor.trim() ? cor : "#2a2a3e";
+function statusFieldStyle(cor: string | null | undefined): React.CSSProperties {
+  const accent = cor && cor.trim() ? cor : "#6366f1";
   return {
-    background: `${bg}33`,
+    backgroundColor: "#141424",
     color: "var(--text-primary)",
-    border: `1px solid ${bg}55`,
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderLeft: `3px solid ${accent}`,
   };
 }
 
@@ -186,8 +187,8 @@ export function SubatividadesList({ atividadeId, readonly = false }: Props) {
                         value={sub.status_id ?? ""}
                         onChange={(e) => handleStatus(sub, e.target.value)}
                         disabled={readonly}
-                        className="text-[10px] font-mono border-0 outline-none rounded px-1.5 py-0.5 cursor-pointer max-w-[200px]"
-                        style={chipStyle(corStatus(sub))}
+                        className="text-[11px] font-mono rounded-[8px] px-2 py-1 max-w-[200px] cursor-pointer outline-none focus:border-indigo-500/50"
+                        style={statusFieldStyle(corStatus(sub))}
                       >
                         {statusOrdenados.map((opt) => (
                           <option key={opt.id} value={opt.id}>
@@ -197,8 +198,8 @@ export function SubatividadesList({ atividadeId, readonly = false }: Props) {
                       </select>
                     ) : (
                       <span
-                        className="text-[10px] font-mono px-1.5 py-0.5 rounded"
-                        style={chipStyle(corStatus(sub))}
+                        className="text-[11px] font-mono rounded-[8px] px-2 py-1 inline-block max-w-[200px] truncate align-middle"
+                        style={statusFieldStyle(corStatus(sub))}
                       >
                         {labelStatus(sub)}
                       </span>
