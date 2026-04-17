@@ -12,7 +12,7 @@ export function useAtividades(tenantId: string | undefined, projetoId?: string) 
       let q = supabase
         .from("atividades")
         .select(`
-          id, codigo, nome, percentual_concluido, data_fim_prevista,
+          id, codigo, nome, percentual_concluido, data_inicio_prevista, data_fim_prevista,
           status_aceite, kanban_cor_etiqueta, coluna_kanban_ordem,
           status:status_id(id, nome, cor, ordem, is_final),
           prioridade:prioridade_id(id, nome, cor),

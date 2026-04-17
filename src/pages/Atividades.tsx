@@ -27,7 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { cn, fmtDate, dateColor } from "@/lib/utils";
+import { cn, fmtPrevisao, dateColor } from "@/lib/utils";
 import { percentualAtividadeComSubatividades } from "@/lib/progressoComSubatividades";
 import { ModalNovaAtividade } from "@/components/modals/ModalNovaAtividade";
 
@@ -430,7 +430,7 @@ export default function Atividades() {
                       <span
                         className={cn("text-[10.5px] font-mono", atrasado ? "text-rose-400" : dateColor(a.data_fim_prevista))}
                       >
-                        {atrasado ? "⏱ ATRASO" : `⏱ ${fmtDate(a.data_fim_prevista)}`}
+                        {atrasado ? "⏱ ATRASO" : `⏱ ${fmtPrevisao(a.data_fim_prevista)}`}
                       </span>
                       <div className="w-[80px]">
                         <ProgressBar value={pct} />
@@ -470,7 +470,11 @@ export default function Atividades() {
                   {/* Painel de subatividades expandido */}
                   {isExpanded && (
                     <div className="px-4 py-3 bg-[#141424] border-t border-white/[0.04]">
-                      <SubatividadesList atividadeId={a.id} />
+                      <SubatividadesList
+                        atividadeId={a.id}
+                        dataInicioPrevista={a.data_inicio_prevista}
+                        dataFimPrevista={a.data_fim_prevista}
+                      />
                     </div>
                   )}
                 </div>

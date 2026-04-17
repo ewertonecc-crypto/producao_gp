@@ -1,4 +1,27 @@
 import { useMemo, useState } from "react";
+
+/** Converte previsão de fim da atividade (YYYY-MM-DD ou ISO) para limite do input date. */
+function previsaoFimParaMaxInput(dataFimPrevista: string | null | undefined): string | undefined {
+  if (dataFimPrevista == null || String(dataFimPrevista).trim() === "") return undefined;
+  const s = String(dataFimPrevista).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return undefined;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** Garante prazo ≤ fim da atividade; preserva o texto original se já estiver dentro do limite. */
+function clampPrazoAteMax(prazoRaw: string, maxYmd: string | undefined): string {
+  if (!maxYmd || !prazoRaw) return prazoRaw;
+  const prazoYmd = previsaoFimParaMaxInput(prazoRaw);
+  if (!prazoYmd) return prazoRaw;
+  if (prazoYmd > maxYmd) return maxYmd;
+  return prazoRaw;
+}
+import { Pencil, Trash2 } from "lucide-react";
 import {
   useSubatividades,
   useCreateSubatividade,
@@ -8,7 +31,8 @@ import {
 import { useUsuarios } from "@/hooks/useUsuarios";
 import { useTenant } from "@/hooks/useTenant";
 import { useStatus } from "@/hooks/useStatus";
-import { cn, fmtDate } from "@/lib/utils";
+import { cn, fmtPrevisao } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 function statusFieldStyle(cor: string | null | undefined): React.CSSProperties {
   const accent = cor && cor.trim() ? cor : "#6366f1";
@@ -23,15 +47,23 @@ function statusFieldStyle(cor: string | null | undefined): React.CSSProperties {
 interface Props {
   atividadeId: string;
   readonly?: boolean;
+  /** Previsões da atividade pai (exibidas no painel; hora se vier em ISO). */
+  dataInicioPrevista?: string | null;
+  dataFimPrevista?: string | null;
 }
 
-export function SubatividadesList({ atividadeId, readonly = false }: Props) {
+export function SubatividadesList({
+  atividadeId,
+  readonly = false,
+  dataInicioPrevista,
+  dataFimPrevista,
+}: Props) {
   const { data: tenant } = useTenant();
   const { data: subs = [], isLoading } = useSubatividades(atividadeId);
   const { data: usuarios = [] } = useUsuarios(tenant?.id);
   const { data: statusCfg = [], isLoading: loadingStatusCfg } = useStatus(tenant?.id, "subatividade", false);
   const { mutate: criar, isPending: criando } = useCreateSubatividade();
-  const { mutate: atualizar } = useUpdateSubatividade();
+  const { mutate: atualizar, isPending: atualizando } = useUpdateSubatividade();
   const { mutate: deletar } = useDeleteSubatividade();
 
   const statusOrdenados = useMemo(
@@ -43,10 +75,56 @@ export function SubatividadesList({ atividadeId, readonly = false }: Props) {
     [statusOrdenados]
   );
 
+  const prazoMaxAtividade = useMemo(
+    () => previsaoFimParaMaxInput(dataFimPrevista),
+    [dataFimPrevista]
+  );
+
   const [novoNome, setNovoNome] = useState("");
   const [novoPrazo, setNovoPrazo] = useState("");
   const [novoResp, setNovoResp] = useState("");
   const [adicionando, setAdicionando] = useState(false);
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [editNome, setEditNome] = useState("");
+  const [editPrazo, setEditPrazo] = useState("");
+  const [editResp, setEditResp] = useState("");
+  const [editObs, setEditObs] = useState("");
+
+  const iniciarEdicao = (sub: (typeof subs)[0]) => {
+    setEditandoId(sub.id);
+    setEditNome(sub.nome);
+    const prazoCampo = previsaoFimParaMaxInput(sub.prazo) ?? sub.prazo;
+    setEditPrazo(clampPrazoAteMax(prazoCampo, prazoMaxAtividade));
+    setEditResp(sub.responsavel_id ?? "");
+    setEditObs(sub.observacao ?? "");
+    setAdicionando(false);
+  };
+
+  const cancelarEdicao = () => {
+    setEditandoId(null);
+    setEditNome("");
+    setEditPrazo("");
+    setEditResp("");
+    setEditObs("");
+  };
+
+  const salvarEdicao = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editandoId || !editNome.trim() || !editPrazo || atualizando) return;
+    const prazoSalvar =
+      previsaoFimParaMaxInput(clampPrazoAteMax(editPrazo, prazoMaxAtividade)) ?? editPrazo;
+    atualizar(
+      {
+        id: editandoId,
+        atividadeId,
+        nome: editNome.trim(),
+        prazo: prazoSalvar,
+        responsavel_id: editResp || null,
+        observacao: editObs.trim() || null,
+      },
+      { onSuccess: () => cancelarEdicao() }
+    );
+  };
 
   const totalValidas = subs.filter((s) => s.status !== "cancelada").length;
   const totalConcluidas = subs.filter((s) => s.status === "concluida").length;
@@ -58,11 +136,13 @@ export function SubatividadesList({ atividadeId, readonly = false }: Props) {
     if (!statusInicialId) {
       return;
     }
+    const prazoSalvar =
+      previsaoFimParaMaxInput(clampPrazoAteMax(novoPrazo, prazoMaxAtividade)) ?? novoPrazo;
     criar(
       {
         atividade_id: atividadeId,
         nome: novoNome.trim(),
-        prazo: novoPrazo,
+        prazo: prazoSalvar,
         responsavel_id: novoResp || undefined,
         ordem: subs.length,
         status_id: statusInicialId,
@@ -141,6 +221,17 @@ export function SubatividadesList({ atividadeId, readonly = false }: Props) {
         />
       </div>
 
+      {(dataInicioPrevista != null && String(dataInicioPrevista).trim() !== "") ||
+      (dataFimPrevista != null && String(dataFimPrevista).trim() !== "") ? (
+        <div className="text-[10px] font-mono text-[var(--text-muted)] mb-2.5 leading-relaxed">
+          <span className="text-[var(--text-secondary)]">Previsão da atividade</span>
+          {" · "}
+          Início {fmtPrevisao(dataInicioPrevista)}
+          {" · "}
+          Fim {fmtPrevisao(dataFimPrevista)}
+        </div>
+      ) : null}
+
       {/* Lista de subatividades */}
       {isLoading ? (
         <div className="text-[12px] font-mono text-[var(--text-muted)] py-2">Carregando...</div>
@@ -150,7 +241,9 @@ export function SubatividadesList({ atividadeId, readonly = false }: Props) {
         </div>
       ) : (
         <div className="flex flex-col gap-1.5 mb-3">
-          {subs.map((sub) => (
+          {subs.map((sub) => {
+            const isEdit = editandoId === sub.id;
+            return (
             <div
               key={sub.id}
               className={cn(
@@ -166,12 +259,75 @@ export function SubatividadesList({ atividadeId, readonly = false }: Props) {
                 <input
                   type="checkbox"
                   checked={sub.executada || sub.status === "concluida"}
-                  disabled={readonly || sub.status === "cancelada" || statusOrdenados.length === 0}
+                  disabled={readonly || isEdit || sub.status === "cancelada" || statusOrdenados.length === 0}
                   onChange={(e) => handleExecutada(sub, e.target.checked)}
                   className="mt-0.5 w-3.5 h-3.5 cursor-pointer rounded accent-emerald-500 flex-shrink-0"
                 />
 
                 <div className="flex-1 min-w-0">
+                  {isEdit ? (
+                    <form className="flex flex-col gap-2" onSubmit={salvarEdicao}>
+                      <input
+                        autoFocus
+                        value={editNome}
+                        onChange={(e) => setEditNome(e.target.value)}
+                        className="w-full bg-transparent border-b border-white/[0.08] pb-1.5 text-[13px] text-[var(--text-primary)] outline-none"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-[var(--text-muted)] block mb-1">Prazo *</label>
+                          <input
+                            type="date"
+                            value={editPrazo}
+                            max={prazoMaxAtividade}
+                            onChange={(e) =>
+                              setEditPrazo(clampPrazoAteMax(e.target.value, prazoMaxAtividade))
+                            }
+                            className="w-full bg-[#141424] border border-white/[0.08] rounded-[8px] px-2.5 py-1.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-indigo-500/50"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-[var(--text-muted)] block mb-1">Responsável</label>
+                          <select
+                            value={editResp}
+                            onChange={(e) => setEditResp(e.target.value)}
+                            className="w-full bg-[#141424] border border-white/[0.08] rounded-[8px] px-2.5 py-1.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-indigo-500/50"
+                          >
+                            <option value="">— selecionar —</option>
+                            {usuarios.map((u) => (
+                              <option key={u.id} value={u.id}>{u.nome}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-[var(--text-muted)] block mb-1">Observação</label>
+                        <textarea
+                          value={editObs}
+                          onChange={(e) => setEditObs(e.target.value)}
+                          rows={2}
+                          className="w-full bg-[#141424] border border-white/[0.08] rounded-[8px] px-2.5 py-1.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-indigo-500/50 resize-y min-h-[48px]"
+                        />
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={cancelarEdicao}
+                          className="px-3 py-1.5 text-[12px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={!editNome.trim() || !editPrazo || atualizando}
+                          className="px-4 py-1.5 text-[12px] font-medium text-white bg-indigo-500 rounded-[8px] hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {atualizando ? "Salvando..." : "Salvar"}
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <>
                   <div className={cn(
                     "text-[13px] font-medium leading-snug",
                     sub.status === "concluida"
@@ -215,12 +371,13 @@ export function SubatividadesList({ atividadeId, readonly = false }: Props) {
                       "text-[10.5px] font-mono",
                       sub.atrasada ? "text-rose-400 font-medium" : "text-[var(--text-muted)]"
                     )}>
-                      ⏱ {sub.atrasada ? "ATRASO · " : ""}{fmtDate(sub.prazo)}
+                      ⏱ {sub.atrasada ? "ATRASO · " : ""}
+                      Prazo {fmtPrevisao(sub.prazo)}
                     </span>
 
                     {sub.data_conclusao && (
                       <span className="text-[10.5px] font-mono text-emerald-400">
-                        ✓ {fmtDate(sub.data_conclusao)}
+                        ✓ {fmtPrevisao(sub.data_conclusao)}
                       </span>
                     )}
                   </div>
@@ -230,20 +387,40 @@ export function SubatividadesList({ atividadeId, readonly = false }: Props) {
                       {sub.observacao}
                     </div>
                   )}
+                    </>
+                  )}
                 </div>
 
-                {!readonly && (
-                  <button
-                    onClick={() => deletar({ id: sub.id, atividadeId })}
-                    className="text-[var(--text-dim)] hover:text-rose-400 transition-colors text-[12px] flex-shrink-0 mt-0.5"
-                    title="Remover subatividade"
-                  >
-                    ✕
-                  </button>
+                {!readonly && !isEdit && (
+                  <div className="flex items-center gap-0.5 flex-shrink-0 mt-0.5">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-[var(--text-muted)] hover:text-indigo-400"
+                      title="Editar subatividade"
+                      aria-label="Editar subatividade"
+                      onClick={() => iniciarEdicao(sub)}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-[var(--text-muted)] hover:text-rose-400"
+                      title="Excluir subatividade"
+                      aria-label="Excluir subatividade"
+                      onClick={() => deletar({ id: sub.id, atividadeId })}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -269,7 +446,10 @@ export function SubatividadesList({ atividadeId, readonly = false }: Props) {
               <input
                 type="date"
                 value={novoPrazo}
-                onChange={(e) => setNovoPrazo(e.target.value)}
+                max={prazoMaxAtividade}
+                onChange={(e) =>
+                  setNovoPrazo(clampPrazoAteMax(e.target.value, prazoMaxAtividade))
+                }
                 className="w-full bg-[#141424] border border-white/[0.08] rounded-[8px] px-2.5 py-1.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-indigo-500/50"
               />
             </div>

@@ -25,6 +25,16 @@ export function fmtDateTime(dateStr: string | null | undefined): string {
   }
 }
 
+/** Data só (YYYY-MM-DD) como em formulários; ISO com hora como vem da atividade no banco. */
+export function fmtPrevisao(dateStr: string | null | undefined): string {
+  if (!dateStr) return "—";
+  const s = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    return fmtDate(s);
+  }
+  return fmtDateTime(s);
+}
+
 export function timeAgo(dateStr: string | null | undefined): string {
   if (!dateStr) return "—";
   try {
