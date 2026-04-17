@@ -14,24 +14,33 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-const schema = z.object({
-  nome: z.string().min(1, "Nome é obrigatório"),
-  descricao: z.string().min(1, "Descrição é obrigatória"),
-  criterio_aceitacao: z.string().min(1, "Critério de aceitação é obrigatório"),
-  projeto_id: z.string().min(1, "Projeto é obrigatório"),
-  responsavel_id: z.string().optional(),
-  prioridade_id: z.string().optional(),
-  status_id: z.string().optional(),
-  categoria_id: z.string().optional(),
-  data_fim_prevista: z.string().min(1, "Data fim prevista é obrigatória"),
-  data_inicio_prevista: z.string().optional(),
-  hora_inicio: z.string().optional(),
-  hora_fim: z.string().optional(),
-  estimativa_horas: z.string().optional(),
-  percentual_concluido: z.string().optional(),
-  kanban_cor_etiqueta: z.string().optional(),
-  is_evento_agenda: z.boolean().optional(),
-});
+const schema = z
+  .object({
+    nome: z.string().min(1, "Nome é obrigatório"),
+    descricao: z.string().min(1, "Descrição é obrigatória"),
+    criterio_aceitacao: z.string().min(1, "Critério de aceitação é obrigatório"),
+    projeto_id: z.string().min(1, "Projeto é obrigatório"),
+    responsavel_id: z.string().optional(),
+    prioridade_id: z.string().optional(),
+    status_id: z.string().optional(),
+    categoria_id: z.string().optional(),
+    data_fim_prevista: z.string().min(1, "Data fim prevista é obrigatória"),
+    data_inicio_prevista: z.string().optional(),
+    hora_inicio: z.string().optional(),
+    hora_fim: z.string().optional(),
+    estimativa_horas: z.string().optional(),
+    percentual_concluido: z.string().optional(),
+    kanban_cor_etiqueta: z.string().optional(),
+    is_evento_agenda: z.boolean().optional(),
+  })
+  .refine(
+    (d) => {
+      const ini = d.data_inicio_prevista?.trim();
+      if (!ini) return true;
+      return d.data_fim_prevista >= ini;
+    },
+    { message: "A data fim não pode ser anterior à data de início.", path: ["data_fim_prevista"] }
+  );
 
 type FormValues = z.infer<typeof schema>;
 
@@ -116,6 +125,7 @@ export function ModalNovaAtividade({
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -190,6 +200,10 @@ export function ModalNovaAtividade({
   const isEdit = !!editId;
   const pending = createMut.isPending || updateMut.isPending;
   const showLoader = isEdit && loadingEdit;
+  const dataInicioW = watch("data_inicio_prevista");
+  const dataFimW = watch("data_fim_prevista");
+  const dataInicioTrim = dataInicioW?.trim() ?? "";
+  const dataFimTrim = dataFimW?.trim() ?? "";
 
   return (
     <ModalBase
@@ -289,15 +303,25 @@ export function ModalNovaAtividade({
               </select>
             </div>
             <div>
+              <label className={modalLabelClass}>Data início prevista</label>
+              <input
+                className={modalInputClass}
+                type="date"
+                max={dataFimTrim || undefined}
+                {...register("data_inicio_prevista")}
+              />
+            </div>
+            <div>
               <label className={modalLabelClass}>Data fim prevista *</label>
-              <input className={modalInputClass} type="date" {...register("data_fim_prevista")} />
+              <input
+                className={modalInputClass}
+                type="date"
+                min={dataInicioTrim || undefined}
+                {...register("data_fim_prevista")}
+              />
               {errors.data_fim_prevista && (
                 <p className="text-[11px] text-rose-400 mt-1">{errors.data_fim_prevista.message}</p>
               )}
-            </div>
-            <div>
-              <label className={modalLabelClass}>Data início prevista</label>
-              <input className={modalInputClass} type="date" {...register("data_inicio_prevista")} />
             </div>
             <div>
               <label className={modalLabelClass}>Hora início</label>

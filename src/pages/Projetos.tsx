@@ -29,6 +29,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn, fmtDate, dateColor } from "@/lib/utils";
+import { progressoProjetoParaExibicao } from "@/lib/progressoComSubatividades";
+import { useProgressoProjetosDerivado } from "@/hooks/useProgressoProjetosDerivado";
 import { ModalNovoProjeto } from "@/components/modals/ModalNovoProjeto";
 import { usePrioridades } from "@/hooks/useStatus";
 import { useUsuarios } from "@/hooks/useUsuarios";
@@ -106,6 +108,7 @@ export default function Projetos() {
   const { data: statusProjeto = [] } = useStatus(tenantId ?? undefined, "projeto");
   const { data: prioridades = [] } = usePrioridades(tenantId ?? undefined);
   const { data: usuarios = [] } = useUsuarios(tenantId ?? undefined);
+  const { porProjeto } = useProgressoProjetosDerivado(tenantId ?? undefined);
   const deleteMut = useDeleteProjeto();
   const [tab, setTab] = useState("todos");
   const [modalOpen, setModalOpen] = useState(false);
@@ -164,7 +167,7 @@ export default function Projetos() {
       if (!nome.includes(q) && !cod.includes(q)) return false;
     }
     if (filters.somenteAtrasados) {
-      const pct = Math.round(p.progresso_percentual ?? 0);
+      const pct = progressoProjetoParaExibicao(p.id, p.progresso_percentual, porProjeto);
       const atrasado = !!p.data_fim_prevista && new Date(p.data_fim_prevista) < new Date() && pct < 100;
       if (!atrasado) return false;
     }
@@ -356,7 +359,7 @@ export default function Projetos() {
         ) : (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4 pb-7">
             {filtered.map((p) => {
-              const pct = Math.round(p.progresso_percentual ?? 0);
+              const pct = progressoProjetoParaExibicao(p.id, p.progresso_percentual, porProjeto);
               const gerenteNome = (p.gerente as { nome?: string } | null)?.nome;
               return (
                 <div

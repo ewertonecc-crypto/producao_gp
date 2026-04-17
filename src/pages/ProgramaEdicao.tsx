@@ -7,6 +7,8 @@ import { ArrowLeft } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 import { useProgramaById, useUpdatePrograma } from "@/hooks/useProgramas";
 import { useProjetos } from "@/hooks/useProjetos";
+import { useProgressoProjetosDerivado } from "@/hooks/useProgressoProjetosDerivado";
+import { progressoProjetoParaExibicao } from "@/lib/progressoComSubatividades";
 import { usePortfolios } from "@/hooks/usePortfolios";
 import { usePrioridades, useStatus } from "@/hooks/useStatus";
 import { useUsuarios } from "@/hooks/useUsuarios";
@@ -42,6 +44,7 @@ export default function ProgramaEdicao() {
   const { data: programa, isLoading, isError } = useProgramaById(id);
   const updateMut = useUpdatePrograma();
   const { data: projetos = [], isLoading: loadingProj } = useProjetos(tenantId ?? undefined, id);
+  const { porProjeto } = useProgressoProjetosDerivado(tenantId ?? undefined);
   const { data: portfolios = [], isFetched: portfoliosFetched } = usePortfolios(tenantId ?? undefined);
   const { data: prioridades = [], isFetched: prioridadesFetched } = usePrioridades(tenantId ?? undefined);
   const { data: statusPrograma = [], isFetched: statusProgramaFetched } = useStatus(tenantId ?? undefined, "programa");
@@ -249,7 +252,7 @@ export default function ProgramaEdicao() {
             ) : (
               <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
                 {projetos.map((p) => {
-                  const pct = Math.round(p.progresso_percentual ?? 0);
+                  const pct = progressoProjetoParaExibicao(p.id, p.progresso_percentual, porProjeto);
                   return (
                     <button
                       key={p.id}

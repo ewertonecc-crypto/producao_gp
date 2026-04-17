@@ -3,6 +3,31 @@ import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "./useTenant";
 import { toast } from "sonner";
 
+/** Mesmo payload em paralelo (vários mutate / Enter repetido) → um único INSERT. */
+const criacaoEmAndamento = new Map<string, Promise<unknown>>();
+
+function chaveCriacaoSub(
+  tenantId: string,
+  payload: {
+    atividade_id: string;
+    nome: string;
+    prazo: string;
+    responsavel_id?: string;
+    observacao?: string;
+    ordem?: number;
+  }
+) {
+  return [
+    tenantId,
+    payload.atividade_id,
+    payload.nome,
+    payload.prazo,
+    String(payload.ordem ?? ""),
+    payload.responsavel_id ?? "",
+    payload.observacao ?? "",
+  ].join("\x1e");
+}
+
 export interface Subatividade {
   id: string;
   atividade_id: string;
@@ -20,6 +45,37 @@ export interface Subatividade {
   total_concluidas?: number;
 }
 
+export type SubatividadesResumo = { concluidas: number; total: number };
+
+/** Contagem por atividade (total exclui canceladas — igual à lista expandida). */
+export function useSubatividadesResumo(atividadeIds: string[]) {
+  const sortedKey = [...atividadeIds].sort().join("\x1e");
+  return useQuery({
+    queryKey: ["subatividades-resumo", sortedKey],
+    queryFn: async () => {
+      const map = new Map<string, SubatividadesResumo>();
+      for (const id of atividadeIds) {
+        map.set(id, { concluidas: 0, total: 0 });
+      }
+      if (atividadeIds.length === 0) return map;
+      const { data, error } = await supabase
+        .from("subatividades")
+        .select("atividade_id, status")
+        .in("atividade_id", atividadeIds);
+      if (error) throw error;
+      for (const row of (data ?? []) as { atividade_id: string; status: string }[]) {
+        if (row.status === "cancelada") continue;
+        const cur = map.get(row.atividade_id);
+        if (!cur) continue;
+        cur.total++;
+        if (row.status === "concluida") cur.concluidas++;
+      }
+      return map;
+    },
+    enabled: atividadeIds.length > 0,
+  });
+}
+
 export function useSubatividades(atividadeId: string | undefined) {
   return useQuery({
     queryKey: ["subatividades", atividadeId],
@@ -30,7 +86,9 @@ export function useSubatividades(atividadeId: string | undefined) {
         .eq("atividade_id", atividadeId!)
         .order("ordem");
       if (error) throw error;
-      return data as Subatividade[];
+      const rows = data as Subatividade[];
+      const porId = new Map(rows.map((r) => [r.id, r]));
+      return [...porId.values()];
     },
     enabled: !!atividadeId,
   });
@@ -40,6 +98,7 @@ export function useCreateSubatividade() {
   const qc = useQueryClient();
   const { data: tenant } = useTenant();
   return useMutation({
+    retry: false,
     mutationFn: async (payload: {
       atividade_id: string;
       nome: string;
@@ -48,19 +107,33 @@ export function useCreateSubatividade() {
       observacao?: string;
       ordem?: number;
     }) => {
-      const { data, error } = await supabase
-        .from("subatividades")
-        .insert({ ...payload, tenant_id: tenant!.id })
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
+      if (!tenant?.id) throw new Error("Tenant não carregado");
+      const key = chaveCriacaoSub(tenant.id, payload);
+      const emCurso = criacaoEmAndamento.get(key);
+      if (emCurso) return emCurso as Promise<Subatividade>;
+
+      const promise = (async () => {
+        const { data, error } = await supabase
+          .from("subatividades")
+          .insert({ ...payload, tenant_id: tenant.id })
+          .select()
+          .single();
+        if (error) throw error;
+        return data as Subatividade;
+      })();
+
+      promise.finally(() => {
+        if (criacaoEmAndamento.get(key) === promise) criacaoEmAndamento.delete(key);
+      });
+      criacaoEmAndamento.set(key, promise);
+      return promise;
     },
-    onSuccess: (_, vars) => {
+    onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: ["subatividades", vars.atividade_id] });
+      qc.invalidateQueries({ queryKey: ["subatividades-resumo"] });
       qc.invalidateQueries({ queryKey: ["atividades"] });
       qc.invalidateQueries({ queryKey: ["v_kanban"] });
-      toast.success("Subatividade criada!");
+      toast.success("Subatividade criada!", { id: `sub-criada-${data.id}` });
     },
     onError: (e: Error) => toast.error("Erro: " + e.message),
   });
@@ -95,6 +168,7 @@ export function useUpdateSubatividade() {
     },
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["subatividades", vars.atividadeId] });
+      qc.invalidateQueries({ queryKey: ["subatividades-resumo"] });
       qc.invalidateQueries({ queryKey: ["atividades"] });
       qc.invalidateQueries({ queryKey: ["v_kanban"] });
       qc.invalidateQueries({ queryKey: ["v_gantt"] });
@@ -113,6 +187,7 @@ export function useDeleteSubatividade() {
     },
     onSuccess: (atividadeId) => {
       qc.invalidateQueries({ queryKey: ["subatividades", atividadeId] });
+      qc.invalidateQueries({ queryKey: ["subatividades-resumo"] });
       qc.invalidateQueries({ queryKey: ["atividades"] });
       toast.success("Subatividade removida.");
     },

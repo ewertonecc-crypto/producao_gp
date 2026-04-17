@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Pencil, Trash2 } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
@@ -21,6 +21,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn, fmtDate, dateColor } from "@/lib/utils";
+import { progressoProjetoParaExibicao } from "@/lib/progressoComSubatividades";
+import { useProgressoProjetosDerivado } from "@/hooks/useProgressoProjetosDerivado";
 import { toast } from "sonner";
 import { ModalNovoPrograma } from "@/components/modals/ModalNovoPrograma";
 
@@ -31,6 +33,7 @@ export default function Programas() {
   const { tenantId } = useTenant();
   const { data: programas = [], isLoading } = useProgramas(tenantId ?? undefined);
   const { data: projetos = [] } = useProjetos(tenantId ?? undefined);
+  const { porProjeto } = useProgressoProjetosDerivado(tenantId ?? undefined);
   const deleteMut = useDeletePrograma();
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ProgramaRow | null>(null);
@@ -65,11 +68,23 @@ export default function Programas() {
     deleteMut.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) });
   };
 
-  const avgByProg = projetos.reduce<Record<string, number>>((acc, p) => {
-    const cnt = countByProg[p.programa_id] ?? 1;
-    acc[p.programa_id] = ((acc[p.programa_id] ?? 0) + (p.progresso_percentual ?? 0)) / cnt;
-    return acc;
-  }, {});
+  const avgByProg = useMemo(() => {
+    const sums: Record<string, number> = {};
+    const counts: Record<string, number> = {};
+    for (const p of projetos) {
+      const gid = p.programa_id;
+      if (!gid) continue;
+      const pct = progressoProjetoParaExibicao(p.id, p.progresso_percentual, porProjeto);
+      sums[gid] = (sums[gid] ?? 0) + pct;
+      counts[gid] = (counts[gid] ?? 0) + 1;
+    }
+    const out: Record<string, number> = {};
+    for (const gid of Object.keys(sums)) {
+      const c = counts[gid] ?? 1;
+      out[gid] = Math.round((sums[gid] ?? 0) / c);
+    }
+    return out;
+  }, [projetos, porProjeto]);
 
   const emExec = programas.filter((p) => ((p.status as { nome?: string } | null)?.nome ?? "").toLowerCase().includes("execu")).length;
   const comAtraso = programas.filter((p) => p.data_fim_prevista && new Date(p.data_fim_prevista) < new Date()).length;

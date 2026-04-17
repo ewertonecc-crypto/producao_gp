@@ -41,8 +41,9 @@ export function SubatividadesList({ atividadeId, readonly = false }: Props) {
   const totalConcluidas = subs.filter(s => s.status === "concluida").length;
   const pct = totalValidas > 0 ? Math.round((totalConcluidas / totalValidas) * 100) : 0;
 
-  const handleAdicionar = () => {
-    if (!novoNome.trim() || !novoPrazo) return;
+  const handleSubmitNova = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!novoNome.trim() || !novoPrazo || criando) return;
     criar(
       {
         atividade_id: atividadeId,
@@ -79,7 +80,7 @@ export function SubatividadesList({ atividadeId, readonly = false }: Props) {
             Subatividades
           </span>
           <span className="text-[10px] font-mono bg-[#1A1A2E] border border-white/[0.08] px-2 py-0.5 rounded text-[var(--text-muted)]">
-            {totalConcluidas}/{totalValidas} concluídas
+            {totalValidas}/{totalConcluidas} existentes / executadas
           </span>
           {subs.some(s => s.atrasada) && (
             <span className="text-[10px] font-mono bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded">
@@ -206,13 +207,18 @@ export function SubatividadesList({ atividadeId, readonly = false }: Props) {
 
       {/* Formulário inline de adição */}
       {adicionando ? (
-        <div className="bg-[#0F0F1A] border border-indigo-500/30 rounded-[10px] p-3 flex flex-col gap-2.5">
+        <form
+          className="bg-[#0F0F1A] border border-indigo-500/30 rounded-[10px] p-3 flex flex-col gap-2.5"
+          onSubmit={handleSubmitNova}
+          onKeyDown={e => {
+            if (e.key === "Enter" && e.repeat) e.preventDefault();
+          }}
+        >
           <input
             autoFocus
             value={novoNome}
             onChange={e => setNovoNome(e.target.value)}
             placeholder="Nome da subatividade *"
-            onKeyDown={e => e.key === "Enter" && handleAdicionar()}
             className="w-full bg-transparent border-b border-white/[0.08] pb-1.5 text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-dim)]"
           />
           <div className="grid grid-cols-2 gap-2">
@@ -241,20 +247,21 @@ export function SubatividadesList({ atividadeId, readonly = false }: Props) {
           </div>
           <div className="flex justify-end gap-2">
             <button
+              type="button"
               onClick={() => { setAdicionando(false); setNovoNome(""); setNovoPrazo(""); setNovoResp(""); }}
               className="px-3 py-1.5 text-[12px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
             >
               Cancelar
             </button>
             <button
-              onClick={handleAdicionar}
+              type="submit"
               disabled={!novoNome.trim() || !novoPrazo || criando}
               className="px-4 py-1.5 text-[12px] font-medium text-white bg-indigo-500 rounded-[8px] hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {criando ? "Salvando..." : "Adicionar"}
             </button>
           </div>
-        </div>
+        </form>
       ) : (
         !readonly && (
           <button

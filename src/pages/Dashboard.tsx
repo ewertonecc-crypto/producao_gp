@@ -1,7 +1,9 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useTenant } from "@/hooks/useTenant";
 import { useProjetos } from "@/hooks/useProjetos";
+import { useProgressoProjetosDerivado } from "@/hooks/useProgressoProjetosDerivado";
+import { progressoProjetoParaExibicao } from "@/lib/progressoComSubatividades";
 import { useMarcos } from "@/hooks/useMarcos";
 import { saveDashboardPdf } from "@/lib/dashboardPdfReport";
 import { fmtDate, dateColor, avatarInitials, progressColor, statusToBadgeClass, prioToClass, cn } from "@/lib/utils";
@@ -9,27 +11,37 @@ import { fmtDate, dateColor, avatarInitials, progressColor, statusToBadgeClass, 
 export default function Dashboard() {
   const { tenantId } = useTenant();
   const { data: projetos = [], isLoading: loadingProj } = useProjetos(tenantId ?? undefined);
+  const { porProjeto } = useProgressoProjetosDerivado(tenantId ?? undefined);
   const { data: marcos = [] } = useMarcos(tenantId ?? undefined);
   const [exportandoPdf, setExportandoPdf] = useState(false);
 
   const hoje = new Date();
   const emExec = projetos.filter(p => (p.status as any)?.nome?.toLowerCase().includes("execu")).length;
   const conc = projetos.filter(p => (p.status as any)?.nome?.toLowerCase().includes("conclu")).length;
-  const atrasados = projetos.filter(p =>
-    p.data_fim_prevista && new Date(p.data_fim_prevista) < hoje && (p.progresso_percentual ?? 0) < 100
+  const projetosComProgresso = useMemo(
+    () =>
+      projetos.map((p) => ({
+        ...p,
+        progresso_percentual: progressoProjetoParaExibicao(p.id, p.progresso_percentual, porProjeto),
+      })),
+    [projetos, porProjeto]
+  );
+
+  const atrasados = projetosComProgresso.filter(
+    (p) => p.data_fim_prevista && new Date(p.data_fim_prevista) < hoje && (p.progresso_percentual ?? 0) < 100
   ).length;
 
   const exportarPdf = useCallback(async () => {
     setExportandoPdf(true);
     try {
-      saveDashboardPdf(projetos, marcos);
+      saveDashboardPdf(projetosComProgresso, marcos);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Falha ao gerar PDF";
       toast.error(msg);
     } finally {
       setExportandoPdf(false);
     }
-  }, [projetos, marcos]);
+  }, [projetosComProgresso, marcos]);
 
   const avClasses = ["from-indigo-500 to-violet-400", "from-cyan-400 to-indigo-500", "from-emerald-500 to-cyan-400", "from-amber-400 to-rose-400"];
 
@@ -182,7 +194,7 @@ export default function Dashboard() {
               ) : projetos.length === 0 ? (
                 <tr><td colSpan={7} className="px-5 py-6 text-center text-[12px] font-mono text-[var(--text-muted)]">Nenhum projeto cadastrado</td></tr>
               ) : (
-                projetos.slice(0, 8).map((p, i) => {
+                projetosComProgresso.slice(0, 8).map((p, i) => {
                   const pct = Math.round(p.progresso_percentual ?? 0);
                   const statusNome = (p.status as any)?.nome ?? "";
                   const prioNome = (p.prioridade as any)?.nome ?? "";

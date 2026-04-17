@@ -2,6 +2,8 @@ import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useTenant } from "@/hooks/useTenant";
 import { useMapaEstrategico } from "@/hooks/useVisualizacoes";
+import { useProgressoProjetosDerivado } from "@/hooks/useProgressoProjetosDerivado";
+import { progressoProjetoParaExibicao } from "@/lib/progressoComSubatividades";
 import { fmtDate, cn } from "@/lib/utils";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -59,6 +61,7 @@ function SaudeDot({ saude }: { saude: string | null | undefined }) {
 export default function MapaEstrategico() {
   const { tenantId } = useTenant();
   const { data: linhas = [], isLoading } = useMapaEstrategico(tenantId ?? undefined);
+  const { porProjeto } = useProgressoProjetosDerivado(tenantId ?? undefined);
 
   const portfolios = useMemo(() => {
     const arvore = (linhas as MapaRow[]).reduce<Record<string, PortfolioNoMapa>>((acc, linha) => {
@@ -92,7 +95,7 @@ export default function MapaEstrategico() {
             id: linha.projeto_id,
             nome: linha.projeto_nome,
             codigo: linha.projeto_codigo,
-            progresso: linha.progresso_percentual,
+            progresso: progressoProjetoParaExibicao(linha.projeto_id, linha.progresso_percentual, porProjeto),
             prazo: linha.data_fim_prevista,
             status: linha.projeto_status,
             cor: linha.projeto_cor,
@@ -103,7 +106,7 @@ export default function MapaEstrategico() {
       return acc;
     }, {});
     return Object.values(arvore);
-  }, [linhas]);
+  }, [linhas, porProjeto]);
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden min-h-0">

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { SubatividadesList } from "@/components/subatividades/SubatividadesList";
+import { useSubatividadesResumo } from "@/hooks/useSubatividades";
 import { useTenant } from "@/hooks/useTenant";
 import { useAtividades, useDeleteAtividade } from "@/hooks/useAtividades";
 import { PageHeader } from "@/components/ui/page-header";
@@ -27,6 +28,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn, fmtDate, dateColor } from "@/lib/utils";
+import { percentualAtividadeComSubatividades } from "@/lib/progressoComSubatividades";
 import { ModalNovaAtividade } from "@/components/modals/ModalNovaAtividade";
 
 type AtividadeRow = NonNullable<ReturnType<typeof useAtividades>["data"]>[number];
@@ -155,6 +157,9 @@ export default function Atividades() {
     return [...map.entries()].sort((x, y) => x[1].localeCompare(y[1], "pt-BR"));
   }, [atividades]);
 
+  const byTabIds = useMemo(() => byTab.map((a) => a.id), [byTab]);
+  const { data: subResumo, isPending: subResumoPending } = useSubatividadesResumo(byTabIds);
+
   const filtered = useMemo(() => {
     return byTab.filter((a) => {
       if (filters.projetoId && (a.projeto as { id?: string } | null)?.id !== filters.projetoId) return false;
@@ -163,14 +168,15 @@ export default function Atividades() {
       if (filters.prioridadeId && (a.prioridade as { id?: string } | null)?.id !== filters.prioridadeId) return false;
       if (filters.responsavelId && (a.responsavel as { id?: string } | null)?.id !== filters.responsavelId) return false;
       if (filters.somenteAtrasadas) {
-        const pct = Math.round(a.percentual_concluido ?? 0);
+        const sub = subResumo?.get(a.id);
+        const pct = percentualAtividadeComSubatividades(a.percentual_concluido, sub);
         const atrasado =
           !!a.data_fim_prevista && new Date(a.data_fim_prevista) < new Date() && pct < 100;
         if (!atrasado) return false;
       }
       return true;
     });
-  }, [byTab, filters]);
+  }, [byTab, filters, subResumo]);
 
   const activeFilterCount = useMemo(() => {
     let n = 0;
@@ -371,10 +377,17 @@ export default function Atividades() {
         ) : (
           <div className="flex flex-col gap-2.5 pb-7">
             {filtered.map((a, i) => {
-              const pct = Math.round(a.percentual_concluido ?? 0);
+              const pct = percentualAtividadeComSubatividades(a.percentual_concluido, subResumo?.get(a.id));
               const statusCor = (a.status as { cor?: string } | null)?.cor ?? "#818CF8";
               const atrasado = a.data_fim_prevista && new Date(a.data_fim_prevista) < new Date() && pct < 100;
               const isExpanded = expandida === a.id;
+              const sub = subResumo?.get(a.id);
+              const subFrac =
+                subResumo == null
+                  ? subResumoPending
+                    ? "—/—"
+                    : "0/0"
+                  : `${sub?.total ?? 0}/${sub?.concluidas ?? 0}`;
               return (
                 <div
                   key={a.id}
@@ -401,8 +414,10 @@ export default function Atividades() {
                         <PrioBadge nome={(a.prioridade as { nome?: string } | null)?.nome} />
                         <button
                           onClick={(e) => { e.stopPropagation(); setExpandida(isExpanded ? null : a.id); }}
-                          className="text-[10.5px] font-mono text-[var(--text-muted)] hover:text-[var(--accent-bright)] transition-colors"
+                          className="inline-flex items-center gap-1.5 text-[10.5px] font-mono text-[var(--text-muted)] hover:text-[var(--accent-bright)] transition-colors"
+                          title="Subatividades existentes / executadas (exceto canceladas no total)"
                         >
+                          <span className="tabular-nums text-[var(--text-secondary)]">{subFrac}</span>
                           {isExpanded ? "▲ Fechar" : "▼ Subatividades"}
                         </button>
                       </div>

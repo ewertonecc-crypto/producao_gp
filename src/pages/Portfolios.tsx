@@ -35,6 +35,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn, fmtDate, dateColor, formatCurrency, progressColor, statusToBadgeClass, prioToClass } from "@/lib/utils";
+import { progressoProjetoParaExibicao } from "@/lib/progressoComSubatividades";
+import { useProgressoProjetosDerivado } from "@/hooks/useProgressoProjetosDerivado";
 import { toast } from "sonner";
 import { ModalNovoPortfolio } from "@/components/modals/ModalNovoPortfolio";
 
@@ -86,6 +88,7 @@ export default function Portfolios() {
   const { data: prioridades = [] } = usePrioridades(tenantId ?? undefined);
   const { data: usuarios = [] } = useUsuarios(tenantId ?? undefined);
   const { data: tiposPortfolio = [] } = useTiposCadastroPorModulo(tenantId ?? undefined, "portfolio");
+  const { porProjeto } = useProgressoProjetosDerivado(tenantId ?? undefined);
 
   const createMut = useCreatePortfolio();
   const updateMut = useUpdatePortfolio();
@@ -204,14 +207,14 @@ export default function Portfolios() {
       let n = 0;
       for (const prog of progs) {
         for (const pj of projsByProg[prog.id] ?? []) {
-          sum += pj.progresso_percentual ?? 0;
+          sum += progressoProjetoParaExibicao(pj.id, pj.progresso_percentual, porProjeto);
           n++;
         }
       }
       m[port.id] = n ? Math.round(sum / n) : 0;
     }
     return m;
-  }, [portfolios, progsByPort, projsByProg]);
+  }, [portfolios, progsByPort, projsByProg, porProjeto]);
 
   const emPlanejamento = portfolios.filter((p) =>
     ((p.status as { nome?: string } | null)?.nome ?? "").toLowerCase().includes("planej")
@@ -507,7 +510,7 @@ export default function Portfolios() {
                             </Button>
                           </div>
                           {projs.map((pj) => {
-                            const pjpct = Math.round(pj.progresso_percentual ?? 0);
+                            const pjpct = progressoProjetoParaExibicao(pj.id, pj.progresso_percentual, porProjeto);
                             const pjPrio = (pj.prioridade as { nome?: string } | null)?.nome ?? "";
                             const pjGerente = (pj.gerente as { nome?: string } | null)?.nome ?? "—";
                             const tipPj = `Gerente: ${pjGerente}\nProgresso: ${pjpct}%\nPrazo: ${fmtDate(pj.data_fim_prevista)}`;
