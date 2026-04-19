@@ -6,13 +6,13 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: true,
-    allowedHosts: ["projeto.noxa.com.br"],
+    allowedHosts: "all",
   },
   preview: {
     host: true,
     port: 5173,
     strictPort: true,
-    allowedHosts: ["projeto.noxa.com.br"],
+    allowedHosts: "all",
   },
   resolve: {
     alias: {
