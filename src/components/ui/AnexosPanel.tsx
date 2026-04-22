@@ -361,7 +361,8 @@ export function AnexosPanel({ entidadeTipo, entidadeId, readonly = false, compac
           {anexos.map(a => (
             <div
               key={a.id}
-              className="flex items-center gap-2.5 bg-[#0F0F1A] border border-white/[0.06] rounded-[10px] px-3 py-2.5 group hover:border-white/[0.12] transition-all"
+              onClick={() => setAnexoVisualizando(a)}
+              className="flex items-center gap-2.5 bg-[#0F0F1A] border border-white/[0.06] rounded-[10px] px-3 py-2.5 group hover:border-indigo-500/25 hover:bg-indigo-500/[0.03] transition-all cursor-pointer"
             >
               <span className="text-[18px] flex-shrink-0">{iconeAnexo(a.mime_type)}</span>
 
@@ -383,7 +384,7 @@ export function AnexosPanel({ entidadeTipo, entidadeId, readonly = false, compac
 
               <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
-                  onClick={() => handleDownload(a)}
+                  onClick={e => { e.stopPropagation(); handleDownload(a); }}
                   className="w-7 h-7 rounded-[6px] bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 hover:bg-indigo-500/20 transition-colors text-[12px]"
                   title="Baixar"
                 >
@@ -391,7 +392,8 @@ export function AnexosPanel({ entidadeTipo, entidadeId, readonly = false, compac
                 </button>
                 {!readonly && (
                   <button
-                    onClick={() => {
+                    onClick={e => {
+                      e.stopPropagation();
                       if (confirm(`Remover "${a.nome_original}"?`)) deletar(a);
                     }}
                     className="w-7 h-7 rounded-[6px] bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 hover:bg-rose-500/20 transition-colors text-[11px]"
@@ -404,6 +406,13 @@ export function AnexosPanel({ entidadeTipo, entidadeId, readonly = false, compac
             </div>
           ))}
         </div>
+      )}
+
+      {anexoVisualizando && (
+        <AnexoViewer
+          anexo={anexoVisualizando}
+          onClose={() => setAnexoVisualizando(null)}
+        />
       )}
     </div>
   );
