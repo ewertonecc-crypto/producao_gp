@@ -512,6 +512,9 @@ export default function Atividades() {
                         )}
                       </div>
 
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <AnexosPanel entidadeTipo="atividade" entidadeId={a.id} compact />
+                      </div>
                       <Button
                         type="button"
                         variant="ghost"
