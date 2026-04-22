@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, Fragment, type ReactNode } from "react";
 import {
   AlertTriangle,
   BarChart3,
   Calendar,
   ChevronRight,
   ClipboardList,
+  FileSpreadsheet,
   Layers,
   LayoutGrid,
   Map,
@@ -38,6 +39,7 @@ import {
   useUpdateTipoCadastro,
 } from "@/hooks/useStatus";
 import { PageHeader } from "@/components/ui/page-header";
+import { ImportacaoExcel } from "@/components/importacao/ImportacaoExcel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -61,6 +63,7 @@ type SectionId =
   | "status"
   | "prioridades"
   | "categorias"
+  | "importacao"
   | "papeis"
   | "tipos_recurso"
   | "tipos_cadastro"
@@ -338,7 +341,11 @@ export default function Configuracoes() {
           }
         >
           <div className="flex flex-wrap gap-1.5 mb-3">
-            {MODULOS_STATUS.map((m) => tabBtn(moduloStatusTab === m.value, () => setModuloStatusTab(m.value), m.label))}
+            {MODULOS_STATUS.map((m) => (
+              <Fragment key={m.value}>
+                {tabBtn(moduloStatusTab === m.value, () => setModuloStatusTab(m.value), m.label)}
+              </Fragment>
+            ))}
           </div>
           <ul className="max-h-[280px] overflow-y-auto">
             {statusDoModulo.length === 0 ? (
@@ -730,6 +737,17 @@ export default function Configuracoes() {
         </SectionShell>
 
         <SectionShell
+          id="importacao"
+          open={openSection === "importacao"}
+          onToggle={toggleSection}
+          icon={<FileSpreadsheet className="h-4 w-4" />}
+          title="Importação e exportação Excel"
+          countLabel="5 módulos"
+        >
+          <ImportacaoExcel />
+        </SectionShell>
+
+        <SectionShell
           id="papeis"
           open={openSection === "papeis"}
           onToggle={toggleSection}
@@ -950,7 +968,11 @@ export default function Configuracoes() {
           }
         >
           <div className="flex flex-wrap gap-1.5 mb-3">
-            {MODULOS_TIPO_CAD.map((m) => tabBtn(moduloTipoCadTab === m.value, () => setModuloTipoCadTab(m.value), m.label))}
+            {MODULOS_TIPO_CAD.map((m) => (
+              <Fragment key={m.value}>
+                {tabBtn(moduloTipoCadTab === m.value, () => setModuloTipoCadTab(m.value), m.label)}
+              </Fragment>
+            ))}
           </div>
           <ul>
             {tiposCadDoModulo.length === 0 ? (
