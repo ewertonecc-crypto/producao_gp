@@ -38,6 +38,7 @@ import { cn, fmtPrevisao } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { RegistrosTempoPopover } from "@/components/ui/registros-tempo-popover";
 import { formatarHorasDecimais } from "@/components/ui/cronometro";
+import { AnexosPanel } from "@/components/ui/AnexosPanel";
 
 function statusFieldStyle(cor: string | null | undefined): React.CSSProperties {
   const accent = cor && cor.trim() ? cor : "#6366f1";
@@ -444,6 +445,12 @@ export function SubatividadesList({
                     </>
                   )}
                 </div>
+
+                {!isEdit && (
+                  <div className="flex-shrink-0 mt-0.5" onClick={(e) => e.stopPropagation()}>
+                    <AnexosPanel entidadeTipo="subatividade" entidadeId={sub.id} compact readonly={readonly} />
+                  </div>
+                )}
 
                 {!readonly && !isEdit && (
                   <div className="flex items-center gap-0.5 flex-shrink-0 mt-0.5">

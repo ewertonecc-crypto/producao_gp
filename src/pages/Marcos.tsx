@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn, fmtDate, dateColor } from "@/lib/utils";
 import { ModalNovoMarco } from "@/components/modals/ModalNovoMarco";
+import { AnexosPanel } from "@/components/ui/AnexosPanel";
 
 type MarcoRow = NonNullable<ReturnType<typeof useMarcos>["data"]>[number];
 
@@ -166,6 +167,7 @@ export default function Marcos() {
                       </td>
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-1">
+                          <AnexosPanel entidadeTipo="marco" entidadeId={m.id} compact />
                           <Button
                             type="button"
                             variant="ghost"

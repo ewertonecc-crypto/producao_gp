@@ -34,6 +34,7 @@ import { cn, fmtPrevisao, dateColor } from "@/lib/utils";
 import { percentualAtividadeComSubatividades } from "@/lib/progressoComSubatividades";
 import { ModalNovaAtividade } from "@/components/modals/ModalNovaAtividade";
 import { RegistrosTempoPopover } from "@/components/ui/registros-tempo-popover";
+import { AnexosPanel } from "@/components/ui/AnexosPanel";
 
 type AtividadeRow = NonNullable<ReturnType<typeof useAtividades>["data"]>[number];
 
@@ -545,13 +546,16 @@ export default function Atividades() {
 
                   {/* Painel de subatividades expandido */}
                   {isExpanded && (
-                    <div className="px-4 py-3 bg-[#141424] border-t border-white/[0.04]">
+                    <div className="px-4 py-3 bg-[#141424] border-t border-white/[0.04] flex flex-col gap-4">
                       <SubatividadesList
                         atividadeId={a.id}
                         dataInicioPrevista={a.data_inicio_prevista}
                         dataFimPrevista={a.data_fim_prevista}
                         mostrarCronometro={getNivel(a.id) === "subatividade"}
                       />
+                      <div className="border-t border-white/[0.04] pt-3">
+                        <AnexosPanel entidadeTipo="atividade" entidadeId={a.id} />
+                      </div>
                     </div>
                   )}
                 </div>

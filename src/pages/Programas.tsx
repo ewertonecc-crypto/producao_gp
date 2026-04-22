@@ -25,6 +25,7 @@ import { progressoProjetoParaExibicao } from "@/lib/progressoComSubatividades";
 import { useProgressoProjetosDerivado } from "@/hooks/useProgressoProjetosDerivado";
 import { toast } from "sonner";
 import { ModalNovoPrograma } from "@/components/modals/ModalNovoPrograma";
+import { AnexosPanel } from "@/components/ui/AnexosPanel";
 
 type ProgramaRow = NonNullable<ReturnType<typeof useProgramas>["data"]>[number];
 
@@ -188,6 +189,7 @@ export default function Programas() {
                       </td>
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-1">
+                          <AnexosPanel entidadeTipo="programa" entidadeId={p.id} compact />
                           <Button
                             type="button"
                             variant="ghost"

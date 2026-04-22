@@ -19,6 +19,7 @@ import {
 import { cn, formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
 import { ModalNovoRecurso } from "@/components/modals/ModalNovoRecurso";
+import { AnexosPanel } from "@/components/ui/AnexosPanel";
 
 type RecursoRow = NonNullable<ReturnType<typeof useRecursos>["data"]>[number];
 
@@ -188,6 +189,7 @@ export default function Recursos() {
                     <span className="text-[11px] font-mono text-[var(--text-muted)]">
                       {r.custo_hora ? `${formatCurrency(Number(r.custo_hora))}/h` : "—"}
                     </span>
+                    <AnexosPanel entidadeTipo="recurso" entidadeId={r.id} compact />
                   </div>
                 </div>
               );

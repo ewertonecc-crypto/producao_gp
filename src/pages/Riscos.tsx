@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { ModalNovoRisco } from "@/components/modals/ModalNovoRisco";
+import { AnexosPanel } from "@/components/ui/AnexosPanel";
 
 type RiscoRow = NonNullable<ReturnType<typeof useRiscos>["data"]>[number];
 
@@ -194,6 +195,9 @@ export default function Riscos() {
                         {(r.projeto as { codigo?: string }).codigo}
                       </span>
                     )}
+                  </div>
+                  <div className="border-t border-white/[0.04] pt-3 mt-1">
+                    <AnexosPanel entidadeTipo="risco" entidadeId={r.id} />
                   </div>
                 </div>
               );

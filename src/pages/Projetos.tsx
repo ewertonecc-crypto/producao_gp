@@ -32,6 +32,7 @@ import { cn, fmtDate, dateColor } from "@/lib/utils";
 import { progressoProjetoParaExibicao } from "@/lib/progressoComSubatividades";
 import { useProgressoProjetosDerivado } from "@/hooks/useProgressoProjetosDerivado";
 import { ModalNovoProjeto } from "@/components/modals/ModalNovoProjeto";
+import { AnexosPanel } from "@/components/ui/AnexosPanel";
 import { usePrioridades } from "@/hooks/useStatus";
 import { useUsuarios } from "@/hooks/useUsuarios";
 
@@ -418,6 +419,7 @@ export default function Projetos() {
                   <div className="flex items-center justify-between pt-3 border-t border-white/[0.04]">
                     <AvatarStack nomes={[gerenteNome]} />
                     <div className="flex items-center gap-2">
+                      <AnexosPanel entidadeTipo="projeto" entidadeId={p.id} compact />
                       <PrioBadge nome={(p.prioridade as { nome?: string } | null)?.nome} />
                       <span className={cn("text-[10.5px] font-mono", dateColor(p.data_fim_prevista))}>
                         ⏱ {fmtDate(p.data_fim_prevista)}

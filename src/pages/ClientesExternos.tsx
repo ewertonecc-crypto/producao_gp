@@ -18,6 +18,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ModalBase, modalInputClass, modalLabelClass } from "@/components/modals/ModalBase";
+import { AnexosPanel } from "@/components/ui/AnexosPanel";
 import { cn, avatarInitials } from "@/lib/utils";
 
 const formSchema = z.object({
@@ -143,6 +144,10 @@ function ClienteCard({
         ) : (
           <span className="text-[11px] font-mono text-[var(--text-muted)]">Nenhum projeto vinculado</span>
         )}
+      </div>
+
+      <div className="border-t border-white/[0.04] pt-3">
+        <AnexosPanel entidadeTipo="cliente_externo" entidadeId={cliente.id} />
       </div>
 
       <div className="flex flex-wrap gap-2 mt-auto pt-1">

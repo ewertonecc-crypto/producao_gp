@@ -39,6 +39,7 @@ import { progressoProjetoParaExibicao } from "@/lib/progressoComSubatividades";
 import { useProgressoProjetosDerivado } from "@/hooks/useProgressoProjetosDerivado";
 import { toast } from "sonner";
 import { ModalNovoPortfolio } from "@/components/modals/ModalNovoPortfolio";
+import { AnexosPanel } from "@/components/ui/AnexosPanel";
 
 const portfolioFormSchema = z.object({
   nome: z.string().min(1, "Nome é obrigatório"),
@@ -385,6 +386,7 @@ export default function Portfolios() {
                       </td>
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-1">
+                          <AnexosPanel entidadeTipo="portfolio" entidadeId={port.id} compact />
                           <Button
                             type="button"
                             variant="ghost"

@@ -7,6 +7,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn, timeAgo } from "@/lib/utils";
 import { ModalConvidarUsuario } from "@/components/modals/ModalConvidarUsuario";
+import { AnexosPanel } from "@/components/ui/AnexosPanel";
 
 const papelColors: Record<string, string> = {
   admin: "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20",
@@ -50,7 +51,7 @@ export default function Usuarios() {
             <table className="w-full border-collapse">
               <thead>
                 <tr>
-                  {["Usuário", "Cargo", "Papel Global", "Último Acesso", "Status"].map((h) => (
+                  {["Usuário", "Cargo", "Papel Global", "Último Acesso", "Anexos", "Status"].map((h) => (
                     <th
                       key={h}
                       className="px-5 py-2.5 text-left text-[10px] font-mono uppercase tracking-[0.1em] text-[var(--text-muted)] border-b border-white/[0.04]"
@@ -95,6 +96,9 @@ export default function Usuarios() {
                       </td>
                       <td className="px-5 py-3 font-mono text-[11px] text-[var(--text-muted)]">
                         {u.ultimo_acesso ? timeAgo(u.ultimo_acesso) : "—"}
+                      </td>
+                      <td className="px-5 py-3">
+                        <AnexosPanel entidadeTipo="usuario" entidadeId={u.id} compact />
                       </td>
                       <td className="px-5 py-3">
                         {u.is_ativo !== false ? (
