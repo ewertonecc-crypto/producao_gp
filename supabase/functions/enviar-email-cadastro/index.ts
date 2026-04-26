@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { nome, email, empresa, plano } = await req.json();
+    const { nome, email, empresa, plano, login_url } = await req.json();
 
     if (!nome || !email || !empresa) {
       return new Response(
@@ -24,6 +24,8 @@ serve(async (req) => {
     const RESEND_API_KEY  = Deno.env.get("RESEND_API_KEY")!;
     const SEU_EMAIL       = Deno.env.get("SEU_EMAIL")!;
     const EMAIL_REMETENTE = Deno.env.get("EMAIL_REMETENTE")!;
+
+    const APP_LOGIN_URL = login_url || Deno.env.get("APP_LOGIN_URL") || "https://app.projectos.com.br/login";
 
     const planosNomes: Record<string, string> = {
       starter:    "Starter — R$ 149/mês",
@@ -44,7 +46,7 @@ serve(async (req) => {
         from: EMAIL_REMETENTE,
         to: [email],
         subject: `Bem-vindo ao ProjectOS, ${nome}! 🚀`,
-        html: templateBoasVindas(nome, empresa, planoNome),
+        html: templateBoasVindas(nome, email, empresa, planoNome, APP_LOGIN_URL),
       }),
     });
 
@@ -77,7 +79,7 @@ serve(async (req) => {
   }
 });
 
-function templateBoasVindas(nome: string, empresa: string, plano: string): string {
+function templateBoasVindas(nome: string, email: string, empresa: string, plano: string, loginUrl: string): string {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -100,11 +102,21 @@ function templateBoasVindas(nome: string, empresa: string, plano: string): strin
           <strong style="color:#F0F0FF;">${empresa}</strong>.<br>
           Plano: <strong style="color:#818CF8;">${plano}</strong>
         </p>
+        <div style="background:#141424;border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:20px;margin-bottom:16px;">
+          <div style="font-size:11px;color:#5A5A80;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px;">Seu acesso</div>
+          <div style="font-size:14px;color:#A0A0C0;line-height:1.8;">
+            Login: <strong style="color:#F0F0FF;">${email}</strong><br>
+            Se for seu primeiro acesso, use "Esqueceu a senha?" para criar sua senha.
+          </div>
+        </div>
+        <a href="${loginUrl}" style="display:block;text-align:center;padding:13px 24px;background:linear-gradient(135deg,#6366F1,#4F46E5);color:#fff;text-decoration:none;border-radius:10px;font-size:14px;font-weight:500;margin-bottom:24px;">
+          Acessar sistema →
+        </a>
         <div style="background:#141424;border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:20px;margin-bottom:24px;">
           <div style="font-size:11px;color:#5A5A80;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px;">O que acontece agora</div>
           <div style="font-size:14px;color:#A0A0C0;line-height:1.8;">
+            ✓ Você já pode acessar o sistema pelo botão acima<br>
             ✓ Nossa equipe entrará em contato em até 24h úteis<br>
-            ✓ Você receberá o link de acesso ao sistema por email<br>
             ✓ Onboarding guiado incluso no trial
           </div>
         </div>
